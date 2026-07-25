@@ -1,16 +1,78 @@
 import 'dotenv/config'
+import { randomBytes } from 'node:crypto'
 import express from 'express'
 
 const app = express()
 const port = Number(process.env.PORT || 8787)
+const sessionCookieName = 'echo_market_session'
+const sessions = new Map()
+const appUsername = process.env.APP_USERNAME || 'campus'
+const appPassword = process.env.APP_PASSWORD || 'Echo@2026'
 
 app.use(express.json({ limit: '1mb' }))
+
+function readCookie(request, name) {
+  const prefix = `${name}=`
+  const entry = String(request.headers.cookie || '')
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+  return entry ? decodeURIComponent(entry.slice(prefix.length)) : ''
+}
+
+function sessionUser(request) {
+  const token = readCookie(request, sessionCookieName)
+  const session = sessions.get(token)
+  if (!session || session.expiresAt <= Date.now()) {
+    if (token) sessions.delete(token)
+    return null
+  }
+  return session.username
+}
 
 app.get('/api/health', (_request, response) => {
   response.json({ ok: true, aiConfigured: Boolean(process.env.AI_API_KEY && process.env.AI_MODEL) })
 })
 
+app.post('/api/auth/login', (request, response) => {
+  const username = typeof request.body?.username === 'string' ? request.body.username.trim() : ''
+  const password = typeof request.body?.password === 'string' ? request.body.password : ''
+
+  if (username !== appUsername || password !== appPassword) {
+    response.status(401).json({ message: '账号或密码不正确。' })
+    return
+  }
+
+  const token = randomBytes(24).toString('base64url')
+  sessions.set(token, { username, expiresAt: Date.now() + 12 * 60 * 60 * 1000 })
+  response.setHeader(
+    'Set-Cookie',
+    `${sessionCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${12 * 60 * 60}`,
+  )
+  response.json({ authenticated: true, user: username })
+})
+
+app.get('/api/auth/session', (request, response) => {
+  const user = sessionUser(request)
+  response.json({ authenticated: Boolean(user), user })
+})
+
+app.post('/api/auth/logout', (request, response) => {
+  const token = readCookie(request, sessionCookieName)
+  if (token) sessions.delete(token)
+  response.setHeader(
+    'Set-Cookie',
+    `${sessionCookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`,
+  )
+  response.json({ authenticated: false })
+})
+
 app.post('/api/ai-polish', async (request, response) => {
+  if (!sessionUser(request)) {
+    response.status(401).json({ message: '请先登录后再使用 AI 发布功能。' })
+    return
+  }
+
   const apiKey = process.env.AI_API_KEY
   const model = process.env.AI_MODEL
   const apiUrl = process.env.AI_API_URL || 'https://api.openai.com/v1/responses'

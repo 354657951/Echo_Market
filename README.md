@@ -1,6 +1,6 @@
 # 回声集
 
-回声集是一座由 AI 辅助发布的校园旧物循环站。未配置 AI 接口时，商品浏览、筛选、详情、收藏、购物清单、图片上传和手动发布仍可正常使用。
+回声集是一座由 AI 辅助发布的校园旧物循环站。站点使用自己的账号密码登录，不依赖 ChatGPT 账号。未配置 AI 接口时，商品浏览、筛选、详情、收藏、购物清单、图片上传和手动发布仍可正常使用。
 
 ## 本地运行
 
@@ -11,6 +11,17 @@ npm run dev:all
 
 页面默认运行在 `http://localhost:5173`，本地接口默认运行在 `http://127.0.0.1:8787`。
 
+## 登录账号
+
+默认课程演示账号：
+
+```text
+账号：campus
+密码：Echo@2026
+```
+
+部署时可以通过 `APP_USERNAME`、`APP_PASSWORD` 和 `APP_SESSION_SECRET` 修改登录账号、密码与会话签名密钥。
+
 ## AI 接口配置
 
 复制 `.env.example` 为 `.env`，填写：
@@ -19,6 +30,9 @@ npm run dev:all
 AI_API_URL=https://api.openai.com/v1/responses
 AI_API_KEY=你的服务端密钥
 AI_MODEL=可用模型名称
+APP_USERNAME=campus
+APP_PASSWORD=Echo@2026
+APP_SESSION_SECRET=随机且足够长的字符串
 PORT=8787
 ```
 

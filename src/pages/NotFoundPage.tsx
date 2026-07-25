@@ -1,0 +1,14 @@
+import { Link } from '../router'
+
+export function NotFoundPage() {
+  return (
+    <main className="route-main">
+      <section className="empty-route-state not-found">
+        <p className="eyebrow">404 / LOST ECHO</p>
+        <h1>这段回声不存在。</h1>
+        <p>你访问的页面可能已移动，返回首页重新开始。</p>
+        <Link className="primary-action" to="/">返回首页</Link>
+      </section>
+    </main>
+  )
+}

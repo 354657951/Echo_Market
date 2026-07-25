@@ -207,6 +207,12 @@ export default {
       return polishListing(request, env)
     }
 
-    return env.ASSETS.fetch(request)
+    const assetResponse = await env.ASSETS.fetch(request)
+    const acceptsHtml = request.headers.get('Accept')?.includes('text/html')
+    if (request.method === 'GET' && assetResponse.status === 404 && acceptsHtml) {
+      const indexRequest = new Request(new URL('/index.html', request.url), request)
+      return env.ASSETS.fetch(indexRequest)
+    }
+    return assetResponse
   },
 }

@@ -24,3 +24,18 @@ export interface ListingDraft {
   tags: string
   image: string
 }
+
+export interface OrderItem {
+  product: Product
+  quantity: number
+}
+
+export interface Order {
+  id: string
+  createdAt: string
+  total: number
+  status: '待与卖家确认' | '已确认见面'
+  pickup: string
+  contactTime: string
+  items: OrderItem[]
+}

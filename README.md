@@ -1,0 +1,38 @@
+# 回声集
+
+回声集是一座由 AI 辅助发布的校园旧物循环站。未配置 AI 接口时，商品浏览、筛选、详情、收藏、购物清单、图片上传和手动发布仍可正常使用。
+
+## 本地运行
+
+```bash
+npm install
+npm run dev:all
+```
+
+页面默认运行在 `http://localhost:5173`，本地接口默认运行在 `http://127.0.0.1:8787`。
+
+## AI 接口配置
+
+复制 `.env.example` 为 `.env`，填写：
+
+```env
+AI_API_URL=https://api.openai.com/v1/responses
+AI_API_KEY=你的服务端密钥
+AI_MODEL=可用模型名称
+PORT=8787
+```
+
+API Key 只由本地 Node 服务读取，不会进入浏览器构建产物。接口需要返回 JSON 商品资料，服务端已兼容 Responses API 的 `output_text` 以及常见兼容接口的 `choices[0].message.content`。
+
+## 生产构建
+
+```bash
+npm run build
+npm run preview
+```
+
+## 数据与隐私
+
+- 商品、收藏和清单保存在浏览器本地存储中。
+- 上传图片在浏览器内转换为预览数据，不会自动上传到外部服务。
+- 页面提示用户当面验货，避免通过不明链接付款。

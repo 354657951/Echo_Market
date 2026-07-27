@@ -1,3 +1,4 @@
+import { authFetch } from '../api/authClient'
 import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { IS_GITHUB_PAGES_DEMO, withBase } from '../config/runtime'
 import { categories } from '../data/products'
@@ -66,7 +67,7 @@ export function PublishPage() {
     setAiStatus('loading')
     setAiMessage('正在整理商品信息…')
     try {
-      const response = await fetch('/api/ai-polish', {
+      const response = await authFetch('/api/ai-polish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

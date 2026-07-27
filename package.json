@@ -10,7 +10,8 @@
     "db:generate": "drizzle-kit generate",
     "build": "tsc && vite build && node scripts/prepare-sites-build.mjs",
     "build:pages": "tsc && vite build --mode github-pages",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test test/*.test.mjs"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
@@ -30,6 +31,7 @@
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
+    "jose": "^6.1.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   }

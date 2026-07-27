@@ -1,4 +1,5 @@
 import type { ListingDraft, Order, Product } from '../types/market'
+import { authFetch } from './authClient'
 
 export interface SharedStoreSnapshot {
   products: Product[]
@@ -13,7 +14,7 @@ interface StoreResponse {
 }
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await authFetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',

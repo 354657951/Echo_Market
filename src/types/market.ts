@@ -13,6 +13,7 @@ export interface Product {
   condition: string
   campus: string
   seller: string
+  isOwner?: boolean
   image: string
   tags: string[]
   postedAt: string

@@ -53,7 +53,7 @@
 | `/market` | 校园集市 | 搜索、分类、排序和商品列表 |
 | `/product/:id` | 商品详情 | 商品图片、状态、描述与交易操作 |
 | `/publish` | AI 发布 | 原始信息输入、AI 整理、人工校对和图片预览 |
-| `/favorites` | 我的收藏 | 小组共享账号保存的收藏商品 |
+| `/favorites` | 我的收藏 | 当前登录用户保存的收藏商品 |
 | `/cart` | 交易清单 | 数量管理、校内交接计划和确认记录 |
 | `/story` | 循环故事 | 项目主题、物品流转过程与当前记录 |
 | `/account` | 账户 | 个人发布、收藏与交易记录 |
@@ -97,7 +97,8 @@ AI_MODEL=Qwen/Qwen3.5-27B
 
 APP_USERNAME=campus
 APP_PASSWORD=请设置本地演示密码
-APP_SESSION_SECRET=请填写随机且足够长的字符串
+APP_SESSION_SECRET=请填写至少 32 字符的随机密钥
+APP_INVITE_CODE=请设置注册邀请码
 STORE_BLOB_URL=可选的服务端共享文档地址
 PORT=8787
 ```
@@ -126,16 +127,11 @@ GitHub Pages 静态演示构建：
 npm run build:pages
 ```
 
-## 演示登录
+## 账号与会话
 
-线上课程演示账号：
+完整版本支持邀请码注册。密码使用 PBKDF2-SHA256 加盐哈希保存，浏览器通过 HttpOnly Cookie 使用 15 分钟访问 JWT 与 30 天可撤销刷新会话。
 
-```text
-账号：campus
-密码：Echo@2026
-```
-
-本地开发和重新部署时，可以通过 `APP_USERNAME`、`APP_PASSWORD` 与 `APP_SESSION_SECRET` 覆盖账号和会话配置。
+首次迁移时，可通过 `APP_USERNAME` 与 `APP_PASSWORD` 初始化兼容的 campus 账号；后续用户使用 `APP_INVITE_CODE` 完成注册。
 
 ## AI 发布流程
 
@@ -207,7 +203,7 @@ Echo_Market/
 
 ## 当前边界
 
-- 小组统一使用默认管理员账号，因此收藏、清单和交易记录也是共享状态，不区分个人。
+- 市场商品对所有登录用户可见；收藏、清单和交易记录按用户隔离。
 - 页面通过操作后立即更新、窗口重新聚焦和定时刷新获取其他组员的最新修改。
 - 交易流程用于课程演示，最终交接仍需双方线下确认。
 - AI 输出可能不准确，必须由发布者检查后再提交。

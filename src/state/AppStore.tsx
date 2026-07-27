@@ -16,6 +16,7 @@ import {
   setSharedFavorite,
   type SharedStoreSnapshot,
 } from '../api/storeApi'
+import type { AuthUser } from '../api/authClient'
 import { IS_GITHUB_PAGES_DEMO, withBase } from '../config/runtime'
 import { products } from '../data/products'
 import type { ListingDraft, Order, Product } from '../types/market'
@@ -56,7 +57,7 @@ function hasLegacyData(snapshot: ReturnType<typeof readLegacySnapshot>) {
 }
 
 interface StoreValue {
-  currentUser: string
+  currentUser: AuthUser
   allProducts: Product[]
   userProducts: Product[]
   favorites: string[]
@@ -88,7 +89,7 @@ export function AppStoreProvider({
   currentUser,
 }: {
   children: ReactNode
-  currentUser: string
+  currentUser: AuthUser
 }) {
   const legacy = useMemo(readLegacySnapshot, [])
   const [allProducts, setAllProducts] = useState<Product[]>(
@@ -107,7 +108,7 @@ export function AppStoreProvider({
   const [notice, setNotice] = useState<Notice | null>(null)
 
   const userProducts = useMemo(
-    () => allProducts.filter((product) => product.id.startsWith('user-')),
+    () => allProducts.filter((product) => product.isOwner),
     [allProducts],
   )
   const favoriteProducts = useMemo(
@@ -317,7 +318,8 @@ export function AppStoreProvider({
         price: Number(draft.price),
         condition: draft.condition,
         campus: '待与买家协商',
-        seller: currentUser,
+        seller: currentUser.username,
+        isOwner: true,
         image: draft.image || withBase('/products/lamp.jpg'),
         tags: draft.tags
           .split(/[·、,，]/)

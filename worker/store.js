@@ -447,6 +447,36 @@ async function createProduct(request, env, currentUser) {
   return json({ product, store: await snapshot(env) }, 201)
 }
 
+async function deleteProduct(env, productId) {
+  if (!env.DB) {
+    const store = await readDocumentStore(env)
+    const product = store.products.find((item) => item.id === productId)
+    if (!product) return json({ message: '商品不存在或已被删除。' }, 404)
+    store.products = store.products.filter((item) => item.id !== productId)
+    store.favorites = store.favorites.filter((id) => id !== productId)
+    delete store.cart[productId]
+    return json({ store: await writeDocumentStore(env, store) })
+  }
+
+  const db = await ensureStore(env)
+  const product = await db.prepare('SELECT image FROM products WHERE id = ?').bind(productId).first()
+  if (!product) return json({ message: '商品不存在或已被删除。' }, 404)
+
+  const updatedAt = nowIso()
+  await db.batch([
+    db.prepare('DELETE FROM favorites WHERE product_id = ?').bind(productId),
+    db.prepare('DELETE FROM cart_items WHERE product_id = ?').bind(productId),
+    db.prepare('DELETE FROM products WHERE id = ?').bind(productId),
+    sharedUpdateStatement(db, updatedAt),
+  ])
+
+  if (env.MEDIA && typeof product.image === 'string' && product.image.startsWith('/api/media/')) {
+    const key = decodeURIComponent(product.image.slice('/api/media/'.length))
+    await env.MEDIA.delete(key)
+  }
+  return json({ store: await snapshot(env) })
+}
+
 async function updateFavorite(request, env, productId) {
   const payload = await request.json()
   const favorite = Boolean(payload.favorite)
@@ -634,13 +664,18 @@ async function bootstrapLegacy(request, env) {
 
   const db = await ensureStore(env)
   const statements = []
+  const failedProducts = []
   const updatedAt = nowIso()
 
   for (const product of (Array.isArray(payload.userProducts) ? payload.userProducts : []).slice(0, 50)) {
     try {
       statements.push(await importLegacyProduct(env, db, product))
-    } catch {
-      // 单条旧数据异常时跳过，不阻断其余有效记录迁移。
+    } catch (error) {
+      failedProducts.push({
+        id: cleanText(product?.id, 100),
+        title: cleanText(product?.title, 80),
+        message: error instanceof Error ? error.message : '商品迁移失败',
+      })
     }
   }
   for (const productId of (Array.isArray(payload.favorites) ? payload.favorites : []).slice(0, 200)) {
@@ -674,7 +709,11 @@ async function bootstrapLegacy(request, env) {
   }
   statements.push(sharedUpdateStatement(db, updatedAt))
   await db.batch(statements)
-  return json({ store: await snapshot(env), imported: true })
+  return json({
+    store: await snapshot(env),
+    imported: failedProducts.length === 0,
+    failedProducts,
+  })
 }
 
 export async function handleStoreApi(request, env, currentUser, url) {
@@ -687,6 +726,12 @@ export async function handleStoreApi(request, env, currentUser, url) {
     }
     if (url.pathname === '/api/products' && request.method === 'POST') {
       return createProduct(request, env, currentUser)
+    }
+    if (url.pathname.startsWith('/api/products/') && request.method === 'DELETE') {
+      return deleteProduct(
+        env,
+        decodeURIComponent(url.pathname.slice('/api/products/'.length)),
+      )
     }
     if (url.pathname.startsWith('/api/favorites/') && request.method === 'PUT') {
       return updateFavorite(

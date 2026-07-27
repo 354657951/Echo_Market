@@ -267,6 +267,7 @@ export default {
       url.pathname === '/api/store'
       || url.pathname === '/api/store/bootstrap'
       || url.pathname === '/api/products'
+      || url.pathname.startsWith('/api/products/')
       || url.pathname === '/api/orders'
       || url.pathname.startsWith('/api/favorites/')
       || url.pathname.startsWith('/api/cart/')

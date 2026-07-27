@@ -1,5 +1,6 @@
-import { Link } from '../router'
+import { Link } from '../router/AppRouter'
 
+// 统一处理未知路径，确保深层链接错误时仍有明确返回入口。
 export function NotFoundPage() {
   return (
     <main className="route-main">

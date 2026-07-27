@@ -1,20 +1,19 @@
-import { Link } from '../router'
-import { AnimatedHeading } from '../components/AnimatedHeading'
-import { FadeIn } from '../components/FadeIn'
-import { ProductCard } from '../components/ProductCard'
-import { useAppStore } from '../store'
-
-const heroVideo =
-  'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260403_050628_c4e32401-fab4-4a27-b7a8-6e9291cd5959.mp4'
+import { Link } from '../router/AppRouter'
+import { HERO_VIDEO_URL } from '../config/media'
+import { ProductCard } from '../components/market/ProductCard'
+import { AnimatedHeading } from '../components/motion/AnimatedHeading'
+import { FadeIn } from '../components/motion/FadeIn'
+import { useAppStore } from '../state/AppStore'
 
 export function HomePage() {
+  // 首页精选最新三件商品，完整列表由集市页面承载。
   const { allProducts, orders } = useAppStore()
   const featured = allProducts.slice(0, 3)
 
   return (
     <main>
       <section className="home-hero">
-        <video aria-label="校园旧物循环站背景影像" autoPlay loop muted playsInline src={heroVideo} />
+        <video aria-label="校园旧物循环站背景影像" autoPlay loop muted playsInline src={HERO_VIDEO_URL} />
         <div className="home-hero-content">
           <div>
             <AnimatedHeading text={'让旧物留下回声\n让价值再次流动。'} />

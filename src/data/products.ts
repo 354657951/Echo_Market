@@ -1,5 +1,6 @@
-import type { Product } from './types'
+import type { Product } from '../types/market'
 
+// 课程演示使用的基础商品数据；用户发布的商品由全局状态在运行时追加。
 export const products: Product[] = [
   {
     id: 'keyboard-01',
@@ -81,4 +82,5 @@ export const products: Product[] = [
   },
 ]
 
+// “全部”仅用于筛选器，不会作为商品自身分类写入数据。
 export const categories = ['全部', '数码', '学习', '生活', '运动', '影音'] as const

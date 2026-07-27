@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
-import { useSearchParams } from '../router'
-import { ProductCard } from '../components/ProductCard'
-import { categories } from '../data'
-import { useAppStore } from '../store'
-import type { Category } from '../types'
+import { ProductCard } from '../components/market/ProductCard'
+import { categories } from '../data/products'
+import { useSearchParams } from '../router/AppRouter'
+import { useAppStore } from '../state/AppStore'
+import type { Category } from '../types/market'
 
 type SortMode = 'latest' | 'price-asc' | 'price-desc'
 
@@ -16,6 +16,7 @@ export function MarketPage() {
   const rawSort = params.get('sort') || 'latest'
   const sort = ['latest', 'price-asc', 'price-desc'].includes(rawSort) ? rawSort as SortMode : 'latest'
 
+  // 搜索、分类和排序均由 URL 查询参数驱动，刷新或分享链接后条件仍可恢复。
   const filteredProducts = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     const result = allProducts.filter((product) => {
@@ -31,6 +32,7 @@ export function MarketPage() {
   }, [allProducts, category, query, sort])
 
   function updateParam(key: string, value: string, fallback: string) {
+    // 默认值不写入地址栏，保持链接简洁。
     const next = new URLSearchParams(params)
     if (value === fallback || !value) next.delete(key)
     else next.set(key, value)

@@ -2,6 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 设计令牌与基础重置：全站以黑白中性色和 Inter 字体建立统一基调。 */
 :root {
   color: #fff;
   background: #000;
@@ -55,6 +56,7 @@ a {
   text-decoration: none;
 }
 
+/* 液态玻璃核心效果：保留原始视觉提示词中的透明、模糊和内高光。 */
 .liquid-glass {
   background: rgba(0, 0, 0, 0.4);
   background-blend-mode: luminosity;
@@ -120,6 +122,7 @@ a {
   font-size: 0.72rem;
 }
 
+/* 登录与会话加载：视频背景只承担氛围，不影响表单可读性。 */
 .auth-shell {
   position: relative;
   display: grid;
@@ -286,6 +289,7 @@ a {
   font-size: 0.7rem;
 }
 
+/* 首屏文字动效：标题按字符错峰出现，副标题随后渐入。 */
 .hero-title {
   margin: 0 0 1rem;
   letter-spacing: -0.04em;
@@ -310,6 +314,7 @@ a {
   transform: translateX(0);
 }
 
+/* 旧版区块基础样式：供登录前后的通用内容结构复用。 */
 .section-shell,
 .publish-section,
 .story-section {
@@ -356,6 +361,7 @@ a {
   letter-spacing: 0.18em;
 }
 
+/* 市集筛选栏：分类、搜索和结果状态保持清晰的操作层级。 */
 .market-toolbar {
   display: flex;
   align-items: center;
@@ -420,6 +426,7 @@ a {
   color: #000;
 }
 
+/* 商品网格与卡片：图片、元信息和主要操作按固定节奏排列。 */
 .product-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -526,6 +533,7 @@ a {
   color: #fff;
 }
 
+/* AI 发布表单：浅色编辑区与深色浏览区形成明确场景区分。 */
 .publish-section {
   background: #ece9e1;
   color: #0b0b0b;
@@ -657,6 +665,7 @@ a {
   background: #f3e7e2;
 }
 
+/* 商品发布预览：桌面端吸顶，便于填写时持续核对公开信息。 */
 .listing-preview {
   position: sticky;
   top: 1.25rem;
@@ -735,6 +744,7 @@ a {
   font-size: 0.68rem;
 }
 
+/* 循环故事：解释平台流程和可信交易原则。 */
 .story-section {
   background: #0a0a0a;
 }
@@ -807,6 +817,7 @@ footer > p {
   justify-self: end;
 }
 
+/* 页脚与弹层的旧版兼容样式。 */
 .footer-links {
   display: flex;
   gap: 1.5rem;
@@ -1128,6 +1139,7 @@ footer > p {
   font-size: 0.78rem;
 }
 
+/* 旧版区块的平板与手机适配。 */
 @media (max-width: 900px) {
   .section-shell,
   .publish-section,
@@ -1288,6 +1300,7 @@ footer > p {
   }
 }
 
+/* 尊重系统“减少动态效果”设置，提供等价的静态阅读路径。 */
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -1309,6 +1322,7 @@ footer > p {
   }
 }
 
+/* 多页面公共框架：统一导航、内容区和页脚的空间关系。 */
 .site-frame {
   min-height: 100vh;
   background: #050505;
@@ -1405,6 +1419,7 @@ footer > p {
   font-size: 0.62rem;
 }
 
+/* 首页视频叙事：视口级视频、标题和入口卡片共同构成首屏。 */
 .home-hero {
   position: relative;
   display: flex;
@@ -1519,6 +1534,7 @@ footer > p {
   font-size: 0.72rem;
 }
 
+/* 独立路由通用结构：所有页面共享稳定的顶部留白与内容宽度。 */
 .route-main {
   min-height: calc(100vh - 72px);
   background: #050505;
@@ -1602,6 +1618,7 @@ footer > p {
   color: #555;
 }
 
+/* 首页旅程入口：把浏览、发布和故事拆成三个可独立访问的路径。 */
 .journey-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1663,6 +1680,7 @@ footer > p {
   font-size: 0.75rem;
 }
 
+/* 市集页增强筛选：关键字和分类状态写入 URL，便于刷新与分享。 */
 .market-toolbar.multi-row {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 230px;
@@ -1715,6 +1733,7 @@ footer > p {
   color: #aaa;
 }
 
+/* 商品详情页：左侧证据图片，右侧信息和交易决策。 */
 .product-page {
   display: grid;
   min-height: calc(100svh - 72px);
@@ -1796,6 +1815,7 @@ footer > p {
   gap: 0.7rem;
 }
 
+/* 发布页：AI 只润色表达，不代替用户确认商品事实。 */
 .publish-page,
 .publish-page .route-section {
   background: #ece9e1;
@@ -1843,6 +1863,7 @@ footer > p {
   line-height: 1.7;
 }
 
+/* 交易清单：商品明细与线下交付方案在桌面端并排核对。 */
 .cart-page-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.42fr);
@@ -1981,6 +2002,7 @@ footer > p {
   background: #bbb7ae;
 }
 
+/* 循环故事页：用阶段化内容说明物品从发布到再利用的过程。 */
 .story-hero {
   padding: 8rem max(1.5rem, calc((100vw - 1440px) / 2)) 5rem;
   border-bottom: 1px solid #242424;
@@ -2044,6 +2066,7 @@ footer > p {
   gap: 3rem;
 }
 
+/* 账户页：集中呈现用户状态、收藏、发布和最近交易。 */
 .account-hero {
   display: flex;
   min-height: 420px;
@@ -2155,6 +2178,7 @@ footer > p {
   color: #777;
 }
 
+/* 多页面公共页脚。 */
 .site-footer {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -2184,6 +2208,7 @@ footer > p {
   font-size: 0.7rem;
 }
 
+/* 新版多页面布局的响应式规则。 */
 @media (max-width: 1050px) {
   .site-navigation {
     gap: 1rem;

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
-import { NavLink } from '../router'
-import { useAppStore } from '../store'
+import { NavLink } from '../../router/AppRouter'
+import { useAppStore } from '../../state/AppStore'
 
+// 主导航配置集中维护，确保桌面和响应式导航顺序一致。
 const navigation = [
   { to: '/', label: '首页', end: true },
   { to: '/market', label: '集市' },

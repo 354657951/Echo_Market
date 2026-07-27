@@ -1,7 +1,8 @@
-import { Link } from '../router'
-import { useAppStore } from '../store'
+import { Link } from '../router/AppRouter'
+import { useAppStore } from '../state/AppStore'
 
 export function StoryPage() {
+  // 循环故事中的数字来自当前浏览器的真实商品与确认记录。
   const { allProducts, orders } = useAppStore()
 
   return (

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { AuthChecking, LoginScreen } from './components/AuthScreens'
-import { SiteLayout } from './components/SiteLayout'
+import { AuthChecking, LoginScreen } from './components/auth/AuthScreens'
+import { SiteLayout } from './components/layout/SiteLayout'
 import { AccountPage } from './pages/AccountPage'
 import { CartPage } from './pages/CartPage'
 import { FavoritesPage } from './pages/FavoritesPage'
@@ -10,12 +10,13 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { ProductPage } from './pages/ProductPage'
 import { PublishPage } from './pages/PublishPage'
 import { StoryPage } from './pages/StoryPage'
-import { useLocation } from './router'
-import { AppStoreProvider } from './store'
+import { useLocation } from './router/AppRouter'
+import { AppStoreProvider } from './state/AppStore'
 
 type AuthState = 'checking' | 'signed-out' | 'signed-in'
 
 function RouteContent({ onLogout }: { onLogout: () => Promise<void> }) {
+  // 根据当前路径选择页面组件；未知地址统一进入 404 页面。
   const { pathname } = useLocation()
   let page
 
@@ -37,6 +38,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState('')
 
   useEffect(() => {
+    // 首次加载时向服务端确认 HttpOnly Cookie 中的登录状态。
     const controller = new AbortController()
     fetch('/api/auth/session', { signal: controller.signal })
       .then(async (response) => {
@@ -56,6 +58,7 @@ export default function App() {
   }, [])
 
   async function logout() {
+    // 服务端清除会话后再重置前端身份，避免页面残留登录状态。
     await fetch('/api/auth/logout', { method: 'POST' })
     setCurrentUser('')
     setAuthState('signed-out')

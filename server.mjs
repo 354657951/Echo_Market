@@ -2,15 +2,18 @@ import 'dotenv/config'
 import { randomBytes } from 'node:crypto'
 import express from 'express'
 
+// 本地开发服务：提供账号会话和 AI 商品信息整理接口。
 const app = express()
 const port = Number(process.env.PORT || 8787)
 const sessionCookieName = 'echo_market_session'
 const sessions = new Map()
 const appUsername = process.env.APP_USERNAME || 'campus'
 const appPassword = process.env.APP_PASSWORD || 'Echo@2026'
+const defaultAiApiUrl = 'https://api.siliconflow.cn/v1/chat/completions'
 
 app.use(express.json({ limit: '1mb' }))
 
+// 从 Cookie 字符串中读取指定字段，避免额外引入解析依赖。
 function readCookie(request, name) {
   const prefix = `${name}=`
   const entry = String(request.headers.cookie || '')
@@ -21,6 +24,7 @@ function readCookie(request, name) {
 }
 
 function sessionUser(request) {
+  // 内存会话仅用于本地开发；生产环境使用 Worker 的签名 Cookie。
   const token = readCookie(request, sessionCookieName)
   const session = sessions.get(token)
   if (!session || session.expiresAt <= Date.now()) {
@@ -30,11 +34,47 @@ function sessionUser(request) {
   return session.username
 }
 
+function createAiRequestBody(apiUrl, model, prompt) {
+  // SiliconFlow 使用 Chat Completions；同时保留其他兼容接口的 input 形式。
+  if (apiUrl.includes('/chat/completions')) {
+    return {
+      model,
+      messages: [
+        {
+          role: 'system',
+          content: '你是校园二手交易平台的商品编辑。请严格返回一个 JSON 对象，不要输出 Markdown。',
+        },
+        { role: 'user', content: prompt },
+      ],
+      stream: false,
+      temperature: 0.2,
+      max_tokens: 800,
+      enable_thinking: false,
+      response_format: { type: 'json_object' },
+    }
+  }
+
+  return { model, input: prompt }
+}
+
+function upstreamErrorMessage(payload) {
+  // 兼容不同供应商的字符串、顶层 message 和 error.message 错误结构。
+  if (typeof payload === 'string') return payload
+  return payload?.error?.message || payload?.message || 'AI 服务暂时不可用。'
+}
+
 app.get('/api/health', (_request, response) => {
-  response.json({ ok: true, aiConfigured: Boolean(process.env.AI_API_KEY && process.env.AI_MODEL) })
+  response.json({
+    ok: true,
+    aiConfigured: Boolean(process.env.AI_API_KEY && process.env.AI_MODEL),
+    aiProvider: (process.env.AI_API_URL || defaultAiApiUrl).includes('siliconflow.cn')
+      ? 'siliconflow'
+      : 'compatible',
+  })
 })
 
 app.post('/api/auth/login', (request, response) => {
+  // 课程演示账号可通过环境变量覆盖，源码中不保存生产密码。
   const username = typeof request.body?.username === 'string' ? request.body.username.trim() : ''
   const password = typeof request.body?.password === 'string' ? request.body.password : ''
 
@@ -68,6 +108,7 @@ app.post('/api/auth/logout', (request, response) => {
 })
 
 app.post('/api/ai-polish', async (request, response) => {
+  // AI 功能要求登录，防止公开接口被匿名批量调用。
   if (!sessionUser(request)) {
     response.status(401).json({ message: '请先登录后再使用 AI 发布功能。' })
     return
@@ -75,7 +116,7 @@ app.post('/api/ai-polish', async (request, response) => {
 
   const apiKey = process.env.AI_API_KEY
   const model = process.env.AI_MODEL
-  const apiUrl = process.env.AI_API_URL || 'https://api.openai.com/v1/responses'
+  const apiUrl = process.env.AI_API_URL || defaultAiApiUrl
 
   if (!apiKey || !model) {
     response.status(503).json({
@@ -93,6 +134,7 @@ app.post('/api/ai-polish', async (request, response) => {
   }
 
   const prompt = [
+    // 提示词强调事实、字段约束和安全交易，避免生成夸张营销文案。
     '你是校园二手交易平台的商品编辑。',
     '请把用户提供的信息整理为可信、克制、无夸张承诺的商品资料。',
     '只返回合法 JSON，不要使用 Markdown。',
@@ -105,23 +147,21 @@ app.post('/api/ai-polish', async (request, response) => {
   ].join('\n')
 
   try {
+    // API Key 仅在服务端请求头中使用，不返回给浏览器。
     const upstream = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model,
-        input: prompt,
-      }),
+      body: JSON.stringify(createAiRequestBody(apiUrl, model, prompt)),
     })
 
     const payload = await upstream.json()
 
     if (!upstream.ok) {
       response.status(502).json({
-        message: payload?.error?.message || 'AI 服务暂时不可用。',
+        message: upstreamErrorMessage(payload),
       })
       return
     }
@@ -137,6 +177,7 @@ app.post('/api/ai-polish', async (request, response) => {
     }
 
     const cleaned = text.replace(/^```json\s*/i, '').replace(/```$/i, '').trim()
+    // 去除模型可能附带的 Markdown 围栏后再解析结构化商品数据。
     const listing = JSON.parse(cleaned)
     response.json({ configured: true, listing })
   } catch {

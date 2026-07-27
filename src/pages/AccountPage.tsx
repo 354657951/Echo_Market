@@ -1,9 +1,10 @@
-import { Link, useSearchParams } from '../router'
-import { useAppStore } from '../store'
+import { Link, useSearchParams } from '../router/AppRouter'
+import { useAppStore } from '../state/AppStore'
 
 export function AccountPage({ onLogout }: { onLogout: () => Promise<void> }) {
   const { currentUser, favorites, cartCount, userProducts, orders } = useAppStore()
   const [params] = useSearchParams()
+  // 新生成的确认单通过查询参数高亮，帮助用户快速定位结果。
   const highlightedOrder = params.get('order')
 
   return (

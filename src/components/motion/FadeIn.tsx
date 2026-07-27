@@ -11,6 +11,7 @@ export function FadeIn({ children, delay = 0, duration = 1000, className = '' }:
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
+    // 减少动态效果模式下跳过等待，让信息立即可读。
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reduceMotion) {
       setVisible(true)

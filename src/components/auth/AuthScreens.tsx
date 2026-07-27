@@ -1,7 +1,5 @@
 import { useState, type FormEvent } from 'react'
-
-const heroVideo =
-  'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260403_050628_c4e32401-fab4-4a27-b7a8-6e9291cd5959.mp4'
+import { HERO_VIDEO_URL } from '../../config/media'
 
 export function LoginScreen({ onSignedIn }: { onSignedIn: (username: string) => void }) {
   const [username, setUsername] = useState('')
@@ -10,6 +8,7 @@ export function LoginScreen({ onSignedIn }: { onSignedIn: (username: string) => 
   const [submitting, setSubmitting] = useState(false)
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    // 账号密码只发送到同源服务端，前端不保存明文密码。
     event.preventDefault()
     setSubmitting(true)
     setMessage('正在验证账号…')
@@ -31,7 +30,7 @@ export function LoginScreen({ onSignedIn }: { onSignedIn: (username: string) => 
 
   return (
     <main className="auth-shell">
-      <video aria-hidden="true" autoPlay className="auth-video" loop muted playsInline src={heroVideo} />
+      <video aria-hidden="true" autoPlay className="auth-video" loop muted playsInline src={HERO_VIDEO_URL} />
       <div className="auth-brand">
         <strong>回声集</strong>
         <span>AI 校园旧物循环站</span>
@@ -74,7 +73,7 @@ export function LoginScreen({ onSignedIn }: { onSignedIn: (username: string) => 
 export function AuthChecking() {
   return (
     <main className="auth-shell auth-checking">
-      <video aria-hidden="true" autoPlay className="auth-video" loop muted playsInline src={heroVideo} />
+      <video aria-hidden="true" autoPlay className="auth-video" loop muted playsInline src={HERO_VIDEO_URL} />
       <div className="liquid-glass auth-loader" role="status">
         <strong>回声集</strong>
         <span>正在确认登录状态</span>

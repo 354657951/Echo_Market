@@ -40,16 +40,16 @@ npm run dev:all
 复制 `.env.example` 为 `.env`，填写：
 
 ```env
-AI_API_URL=https://api.openai.com/v1/responses
+AI_API_URL=https://api.siliconflow.cn/v1/chat/completions
 AI_API_KEY=你的服务端密钥
-AI_MODEL=可用模型名称
+AI_MODEL=Qwen/Qwen3-8B
 APP_USERNAME=campus
 APP_PASSWORD=Echo@2026
 APP_SESSION_SECRET=随机且足够长的字符串
 PORT=8787
 ```
 
-API Key 只由本地 Node 服务读取，不会进入浏览器构建产物。接口需要返回 JSON 商品资料，服务端已兼容 Responses API 的 `output_text` 以及常见兼容接口的 `choices[0].message.content`。
+API Key 只由本地 Node 服务或 Sites 生产环境读取，不会进入浏览器构建产物。默认使用 SiliconFlow 的 Chat Completions 接口，以 `messages` 发送商品原始信息，并要求模型返回 JSON；服务端同时保留对 Responses API `output_text` 的兼容。
 
 ## 生产构建
 

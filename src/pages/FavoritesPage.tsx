@@ -1,8 +1,9 @@
-import { Link } from '../router'
-import { ProductCard } from '../components/ProductCard'
-import { useAppStore } from '../store'
+import { ProductCard } from '../components/market/ProductCard'
+import { Link } from '../router/AppRouter'
+import { useAppStore } from '../state/AppStore'
 
 export function FavoritesPage() {
+  // 收藏页复用商品卡片，保证操作反馈和集市页面一致。
   const { favoriteProducts } = useAppStore()
 
   return (

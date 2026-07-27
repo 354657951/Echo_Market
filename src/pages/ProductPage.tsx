@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
-import { ProductCard } from '../components/ProductCard'
-import { Link, useNavigate, useParams } from '../router'
-import { useAppStore } from '../store'
+import { ProductCard } from '../components/market/ProductCard'
+import { Link, useNavigate, useParams } from '../router/AppRouter'
+import { useAppStore } from '../state/AppStore'
 
 export function ProductPage() {
   const { id } = useParams()
@@ -10,6 +10,7 @@ export function ProductPage() {
   const product = allProducts.find((item) => item.id === id)
 
   useEffect(() => {
+    // 商品不存在时返回集市，避免渲染无效详情。
     if (!product) navigate('/market', { replace: true })
   }, [navigate, product])
 
@@ -21,6 +22,7 @@ export function ProductPage() {
   const isFavorite = favorites.includes(product.id)
 
   function buyNow() {
+    // “立即规划交易”先加入清单，再跳转到线下交接计划。
     addToCart(product!)
     navigate('/cart')
   }

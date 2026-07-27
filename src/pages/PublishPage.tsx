@@ -1,8 +1,8 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
-import { useNavigate } from '../router'
-import { categories } from '../data'
-import { useAppStore } from '../store'
-import type { ListingDraft } from '../types'
+import { categories } from '../data/products'
+import { useNavigate } from '../router/AppRouter'
+import { useAppStore } from '../state/AppStore'
+import type { ListingDraft } from '../types/market'
 
 const emptyDraft: ListingDraft = {
   rawDescription: '',
@@ -22,11 +22,13 @@ export function PublishPage() {
   const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [aiMessage, setAiMessage] = useState('输入物品现状，AI 将整理标题、分类、标签和可信描述。')
 
+  // 使用泛型更新单个字段，保证字段名和值类型一致。
   function updateDraft<K extends keyof ListingDraft>(key: K, value: ListingDraft[K]) {
     setDraft((current) => ({ ...current, [key]: value }))
   }
 
   function handleImage(event: ChangeEvent<HTMLInputElement>) {
+    // 图片仅在浏览器中转为预览，不上传到第三方服务；大小限制为 2.5 MB。
     const file = event.target.files?.[0]
     if (!file) return
     if (file.size > 2.5 * 1024 * 1024) {
@@ -40,6 +42,7 @@ export function PublishPage() {
   }
 
   async function polishWithAi() {
+    // AI 只整理表达，用户仍可修改每个字段并确认真实性。
     if (draft.rawDescription.trim().length < 8) {
       setAiStatus('error')
       setAiMessage('请先输入至少 8 个字的物品信息。')
@@ -77,6 +80,7 @@ export function PublishPage() {
   }
 
   function submitListing(event: FormEvent<HTMLFormElement>) {
+    // 发布前再次校验关键字段，防止绕过表单约束写入无效数据。
     event.preventDefault()
     const price = Number(draft.price)
     if (!draft.title.trim() || !draft.description.trim() || !Number.isFinite(price) || price <= 0) {

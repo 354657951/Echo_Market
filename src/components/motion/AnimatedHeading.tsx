@@ -10,6 +10,7 @@ export function AnimatedHeading({ text, delay = 200 }: AnimatedHeadingProps) {
   const lines = text.split('\n')
 
   useEffect(() => {
+    // 尊重系统“减少动态效果”设置，直接呈现完整标题。
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reduceMotion) {
       setVisible(true)
@@ -24,6 +25,7 @@ export function AnimatedHeading({ text, delay = 200 }: AnimatedHeadingProps) {
       {lines.map((line, lineIndex) => (
         <span className="block" key={`${line}-${lineIndex}`}>
           {line.split('').map((character, characterIndex) => {
+            // 按字符位置计算延迟，形成从左到右的连续入场节奏。
             const stagger = lineIndex * line.length * 30 + characterIndex * 30
             return (
               <span

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from '../router'
-import { useAppStore } from '../store'
+import { Link, useNavigate } from '../router/AppRouter'
+import { useAppStore } from '../state/AppStore'
 
 export function CartPage() {
   const navigate = useNavigate()
@@ -11,6 +11,7 @@ export function CartPage() {
   const [message, setMessage] = useState('确认前请再次查看每件物品的成色与交接地点。')
 
   function confirmTrade(event: FormEvent<HTMLFormElement>) {
+    // 交易确认单只记录线下交接计划，不执行在线支付。
     event.preventDefault()
     if (!agreed) {
       setMessage('请先确认当面验货与安全交易约定。')

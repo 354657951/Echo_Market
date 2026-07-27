@@ -1,8 +1,9 @@
-import { Link } from '../router'
-import { useAppStore } from '../store'
-import type { Product } from '../types'
+import { Link } from '../../router/AppRouter'
+import { useAppStore } from '../../state/AppStore'
+import type { Product } from '../../types/market'
 
 export function ProductCard({ product }: { product: Product }) {
+  // 商品卡片只负责展示与轻量操作，详情内容由独立路由承载。
   const { favorites, toggleFavorite, addToCart } = useAppStore()
   const isFavorite = favorites.includes(product.id)
 

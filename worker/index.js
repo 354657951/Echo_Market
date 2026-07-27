@@ -226,6 +226,8 @@ export default {
           : 'compatible',
         sharedStoreConfigured: Boolean(env.DB || env.STORE_BLOB_URL),
         mediaStoreConfigured: Boolean(env.MEDIA || env.STORE_BLOB_URL),
+        storageMode: env.DB ? 'd1' : env.STORE_BLOB_URL ? 'document-fallback' : 'unconfigured',
+        mediaMode: env.MEDIA ? 'r2' : env.STORE_BLOB_URL ? 'embedded-fallback' : 'unconfigured',
       })
     }
 

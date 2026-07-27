@@ -179,6 +179,127 @@ function productInsert(db, product, source = 'shared') {
     )
 }
 
+function productUpsert(db, product, source = 'legacy') {
+  return db
+    .prepare(
+      `INSERT INTO products
+       (id, title, category, description, price, condition, campus, seller, image, tags_json, posted_at, created_at, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         title = excluded.title,
+         category = excluded.category,
+         description = excluded.description,
+         price = excluded.price,
+         condition = excluded.condition,
+         campus = excluded.campus,
+         seller = excluded.seller,
+         image = excluded.image,
+         tags_json = excluded.tags_json,
+         posted_at = excluded.posted_at,
+         source = excluded.source`,
+    )
+    .bind(
+      product.id,
+      product.title,
+      product.category,
+      product.description,
+      Math.round(Number(product.price)),
+      product.condition,
+      product.campus,
+      product.seller,
+      product.image,
+      JSON.stringify(parseTags(product.tags)),
+      product.postedAt,
+      product.createdAt || nowIso(),
+      source,
+    )
+}
+
+async function migrateDocumentStore(db, env) {
+  if (!hasDocumentStore(env)) return
+
+  const migrated = await db
+    .prepare("SELECT value FROM store_meta WHERE key = 'document_store_import_v1'")
+    .first()
+  if (migrated?.value === '1') return
+
+  let legacyStore
+  try {
+    legacyStore = await readDocumentStore(env)
+  } catch {
+    // 正式数据库已经可用时，临时后备服务异常不能阻断网站。
+    return
+  }
+
+  const migratedAt = nowIso()
+  const statements = []
+
+  for (const product of legacyStore.products.slice(0, 200)) {
+    try {
+      const fields = validateProductInput(product)
+      statements.push(
+        productInsert(
+          db,
+          {
+            id: cleanText(product.id, 100) || `document-${crypto.randomUUID()}`,
+            ...fields,
+            campus: cleanText(product.campus, 100) || '待与买家协商',
+            seller: cleanText(product.seller, 80) || 'campus',
+            image: cleanText(product.image, 3_500_000) || '/products/lamp.jpg',
+            postedAt: cleanText(product.postedAt, 80) || '历史发布',
+            createdAt: cleanText(product.createdAt, 80) || migratedAt,
+          },
+          product.id?.startsWith('user-') ? 'legacy' : 'seed',
+        ),
+      )
+    } catch {
+      // 单条后备数据异常时跳过，不影响其余可恢复记录。
+    }
+  }
+
+  for (const productId of legacyStore.favorites.slice(0, 500)) {
+    statements.push(
+      db.prepare('INSERT OR IGNORE INTO favorites (product_id, updated_at) VALUES (?, ?)')
+        .bind(cleanText(productId, 100), migratedAt),
+    )
+  }
+  for (const [productId, rawQuantity] of Object.entries(legacyStore.cart).slice(0, 500)) {
+    const quantity = Math.max(0, Math.min(5, Math.round(Number(rawQuantity) || 0)))
+    if (quantity > 0) {
+      statements.push(
+        db.prepare(
+          `INSERT INTO cart_items (product_id, quantity, updated_at)
+           VALUES (?, ?, ?)
+           ON CONFLICT(product_id) DO UPDATE SET
+             quantity = MAX(cart_items.quantity, excluded.quantity),
+             updated_at = excluded.updated_at`,
+        ).bind(cleanText(productId, 100), quantity, migratedAt),
+      )
+    }
+  }
+  for (const order of legacyStore.orders.slice(0, 200)) {
+    const orderId = cleanText(order?.id, 100)
+    if (orderId) {
+      statements.push(
+        db.prepare('INSERT OR IGNORE INTO orders (id, payload_json, created_at) VALUES (?, ?, ?)')
+          .bind(orderId, JSON.stringify(order), migratedAt),
+      )
+    }
+  }
+
+  statements.push(
+    db
+      .prepare(
+        `INSERT INTO store_meta (key, value, updated_at)
+         VALUES ('document_store_import_v1', '1', ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      )
+      .bind(migratedAt),
+    sharedUpdateStatement(db, migratedAt),
+  )
+  await db.batch(statements)
+}
+
 async function ensureStore(env) {
   const db = requireStoreBindings(env)
   await db.batch(schemaStatements.map((statement) => db.prepare(statement)))
@@ -186,23 +307,25 @@ async function ensureStore(env) {
   const seeded = await db
     .prepare("SELECT value FROM store_meta WHERE key = 'seed_version'")
     .first()
-  if (seeded?.value === '1') return db
+  if (seeded?.value !== '1') {
+    const seededAt = nowIso()
+    const inserts = seedProducts.map((product) =>
+      productInsert(db, { ...product, createdAt: seededAt }, 'seed'),
+    )
+    inserts.push(
+      db
+        .prepare(
+          `INSERT INTO store_meta (key, value, updated_at)
+           VALUES ('seed_version', '1', ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+        )
+        .bind(seededAt),
+      sharedUpdateStatement(db, seededAt),
+    )
+    await db.batch(inserts)
+  }
 
-  const seededAt = nowIso()
-  const inserts = seedProducts.map((product) =>
-    productInsert(db, { ...product, createdAt: seededAt }, 'seed'),
-  )
-  inserts.push(
-    db
-      .prepare(
-        `INSERT INTO store_meta (key, value, updated_at)
-         VALUES ('seed_version', '1', ?)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-      )
-      .bind(seededAt),
-    sharedUpdateStatement(db, seededAt),
-  )
-  await db.batch(inserts)
+  await migrateDocumentStore(db, env)
   return db
 }
 
@@ -455,7 +578,7 @@ async function importLegacyProduct(env, db, rawProduct) {
     postedAt: cleanText(rawProduct.postedAt, 80) || '历史发布',
     createdAt: nowIso(),
   }
-  return productInsert(db, product, 'legacy')
+  return productUpsert(db, product, 'legacy')
 }
 
 async function bootstrapLegacy(request, env) {

@@ -176,6 +176,15 @@ export function AppStoreProvider({
         const snapshot = shouldImport
           ? await importLegacyStore(legacy)
           : await fetchSharedStore()
+        if (shouldImport) {
+          const importedProductIds = new Set(snapshot.products.map((product) => product.id))
+          const missingProducts = legacy.userProducts.filter(
+            (product) => !importedProductIds.has(product.id),
+          )
+          if (missingProducts.length > 0) {
+            throw new Error(`仍有 ${missingProducts.length} 件本地商品未迁移，原数据已保留。`)
+          }
+        }
         if (!active) return
         applySnapshot(snapshot)
         setSyncStatus('ready')

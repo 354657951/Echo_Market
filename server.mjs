@@ -10,6 +10,12 @@ import {
   updateLocalCart,
   updateLocalFavorite,
 } from './server-store.mjs'
+import {
+  createAiRequestBody,
+  createListingPrompt,
+  normalizeAiListing,
+  validateAiImage,
+} from './shared/ai-listing.js'
 
 // 本地开发服务：提供账号会话和 AI 商品信息整理接口。
 const app = express()
@@ -41,29 +47,6 @@ function sessionUser(request) {
     return null
   }
   return session.username
-}
-
-function createAiRequestBody(apiUrl, model, prompt) {
-  // SiliconFlow 使用 Chat Completions；同时保留其他兼容接口的 input 形式。
-  if (apiUrl.includes('/chat/completions')) {
-    return {
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: '你是校园二手交易平台的商品编辑。请严格返回一个 JSON 对象，不要输出 Markdown。',
-        },
-        { role: 'user', content: prompt },
-      ],
-      stream: false,
-      temperature: 0.2,
-      max_tokens: 800,
-      enable_thinking: false,
-      response_format: { type: 'json_object' },
-    }
-  }
-
-  return { model, input: prompt }
 }
 
 function upstreamErrorMessage(payload) {
@@ -137,25 +120,20 @@ app.post('/api/ai-polish', async (request, response) => {
     return
   }
 
-  const { rawDescription, condition, expectedPrice } = request.body ?? {}
+  const { rawDescription, condition, expectedPrice, image } = request.body ?? {}
+
+  const imageValidation = validateAiImage(image)
+  if (!imageValidation.ok) {
+    response.status(400).json({ message: imageValidation.message })
+    return
+  }
 
   if (typeof rawDescription !== 'string' || rawDescription.trim().length < 8) {
     response.status(400).json({ message: '请至少输入 8 个字的物品信息。' })
     return
   }
 
-  const prompt = [
-    // 提示词强调事实、字段约束和安全交易，避免生成夸张营销文案。
-    '你是校园二手交易平台的商品编辑。',
-    '请把用户提供的信息整理为可信、克制、无夸张承诺的商品资料。',
-    '只返回合法 JSON，不要使用 Markdown。',
-    '字段必须为 title、category、tags、description、priceSuggestion、safetyNote。',
-    'category 只能是 数码、学习、生活、运动、影音 之一。',
-    'tags 必须是 2 到 4 个简短中文字符串组成的数组。',
-    `原始描述：${rawDescription.trim()}`,
-    `成色：${condition || '未说明'}`,
-    `期望价格：${expectedPrice || '未说明'}`,
-  ].join('\n')
+  const prompt = createListingPrompt({ rawDescription, condition, expectedPrice })
 
   try {
     // API Key 仅在服务端请求头中使用，不返回给浏览器。
@@ -165,7 +143,7 @@ app.post('/api/ai-polish', async (request, response) => {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(createAiRequestBody(apiUrl, model, prompt)),
+      body: JSON.stringify(createAiRequestBody(apiUrl, model, prompt, imageValidation.image)),
     })
 
     const payload = await upstream.json()
@@ -189,7 +167,10 @@ app.post('/api/ai-polish', async (request, response) => {
 
     const cleaned = text.replace(/^```json\s*/i, '').replace(/```$/i, '').trim()
     // 去除模型可能附带的 Markdown 围栏后再解析结构化商品数据。
-    const listing = JSON.parse(cleaned)
+    const listing = normalizeAiListing(
+      JSON.parse(cleaned),
+      { rawDescription, condition, expectedPrice },
+    )
     response.json({ configured: true, listing })
   } catch {
     response.status(502).json({ message: '连接 AI 服务失败，请检查接口地址与网络。' })

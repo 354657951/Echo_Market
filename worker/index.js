@@ -1,4 +1,10 @@
 import { handleStoreApi, serveMedia } from './store.js'
+import {
+  createAiRequestBody,
+  createListingPrompt,
+  normalizeAiListing,
+  validateAiImage,
+} from '../shared/ai-listing.js'
 
 function json(data, status = 200) {
   // 所有 API 统一返回 UTF-8 JSON，方便前端集中处理。
@@ -93,29 +99,6 @@ function sessionCookie(token, maxAge) {
   return `${sessionCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`
 }
 
-function createAiRequestBody(apiUrl, model, prompt) {
-  // SiliconFlow 走 Chat Completions；其他兼容服务仍可使用 input 请求。
-  if (apiUrl.includes('/chat/completions')) {
-    return {
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: '你是校园二手交易平台的商品编辑。请严格返回一个 JSON 对象，不要输出 Markdown。',
-        },
-        { role: 'user', content: prompt },
-      ],
-      stream: false,
-      temperature: 0.2,
-      max_tokens: 800,
-      enable_thinking: false,
-      response_format: { type: 'json_object' },
-    }
-  }
-
-  return { model, input: prompt }
-}
-
 function upstreamErrorMessage(payload) {
   if (typeof payload === 'string') return payload
   return payload?.error?.message || payload?.message || 'AI 服务暂时不可用。'
@@ -159,25 +142,28 @@ async function polishListing(request, env) {
     )
   }
 
-  const body = await request.json()
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ message: '请求内容无法解析，请重新选择商品照片。' }, 400)
+  }
   const rawDescription = typeof body.rawDescription === 'string' ? body.rawDescription.trim() : ''
+
+  const imageValidation = validateAiImage(body.image)
+  if (!imageValidation.ok) {
+    return json({ message: imageValidation.message }, 400)
+  }
 
   if (rawDescription.length < 8) {
     return json({ message: '请至少输入 8 个字的物品信息。' }, 400)
   }
 
-  const prompt = [
-    // 约束输出字段和可选分类，降低前端解析失败概率。
-    '你是校园二手交易平台的商品编辑。',
-    '请把用户提供的信息整理为可信、克制、无夸张承诺的商品资料。',
-    '只返回合法 JSON，不要使用 Markdown。',
-    '字段必须为 title、category、tags、description、priceSuggestion、safetyNote。',
-    'category 只能是 数码、学习、生活、运动、影音 之一。',
-    'tags 必须是 2 到 4 个简短中文字符串组成的数组。',
-    `原始描述：${rawDescription}`,
-    `成色：${body.condition || '未说明'}`,
-    `期望价格：${body.expectedPrice || '未说明'}`,
-  ].join('\n')
+  const prompt = createListingPrompt({
+    rawDescription,
+    condition: body.condition,
+    expectedPrice: body.expectedPrice,
+  })
 
   try {
     // 真实密钥只存在于 Worker 运行环境，不进入静态资源。
@@ -188,7 +174,9 @@ async function polishListing(request, env) {
         Authorization: `Bearer ${env.AI_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(createAiRequestBody(apiUrl, env.AI_MODEL, prompt)),
+      body: JSON.stringify(
+        createAiRequestBody(apiUrl, env.AI_MODEL, prompt, imageValidation.image),
+      ),
     })
     const payload = await upstream.json()
 
@@ -206,7 +194,15 @@ async function polishListing(request, env) {
     }
 
     const cleaned = text.replace(/^```json\s*/i, '').replace(/```$/i, '').trim()
-    return json({ configured: true, listing: JSON.parse(cleaned) })
+    const listing = normalizeAiListing(
+      JSON.parse(cleaned),
+      {
+        rawDescription,
+        condition: body.condition,
+        expectedPrice: body.expectedPrice,
+      },
+    )
+    return json({ configured: true, listing })
   } catch {
     return json({ message: '连接 AI 服务失败，请检查接口地址与网络。' }, 502)
   }

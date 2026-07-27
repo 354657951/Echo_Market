@@ -699,6 +699,29 @@ a {
   object-fit: cover;
 }
 
+.preview-empty {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #8f8f8f;
+  text-align: center;
+}
+
+.preview-empty span {
+  color: #d8d8d8;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.preview-empty p {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+}
+
 .preview-content {
   padding: 1.4rem;
 }
@@ -1815,7 +1838,7 @@ footer > p {
   gap: 0.7rem;
 }
 
-/* 发布页：AI 只润色表达，不代替用户确认商品事实。 */
+/* 发布页：AI 读取图片并整理表达，但不代替用户确认商品事实。 */
 .publish-page,
 .publish-page .route-section {
   background: #ece9e1;

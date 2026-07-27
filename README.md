@@ -1,65 +1,199 @@
-# 回声集
+<div align="center">
 
-回声集是一座由 AI 辅助发布的校园旧物循环站。站点使用自己的账号密码登录，不依赖 ChatGPT 账号。未配置 AI 接口时，商品浏览、筛选、详情、收藏、购物清单、图片上传和手动发布仍可正常使用。
+# 回声集 · Echo Market
+
+**AI 辅助的校园旧物循环站**
+
+让闲置物品以更清楚的信息，被下一位真正需要它的人看见。
+
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
+[![AI API](https://img.shields.io/badge/AI-SiliconFlow-171717)](https://siliconflow.cn/)
+[![Course Project](https://img.shields.io/badge/Type-Course_Project-8B8B8B)](#项目说明)
+
+[在线体验](https://echo-market-campus.ldwmrbcilqkbv.chatgpt.site) ·
+[功能概览](#功能概览) ·
+[快速开始](#快速开始) ·
+[项目结构](#项目结构)
+
+</div>
+
+---
+
+## 项目说明
+
+回声集是本科暑期实习期间完成的小组 Web 项目，围绕“校园闲置物品循环”这一主题，练习多页面前端开发、状态管理、服务端接口、账号会话和 AI API 接入。
+
+项目使用独立账号密码登录，不依赖 ChatGPT 账号。AI 用于整理发布者已经提供的商品信息；标题、成色、价格、瑕疵和交易方式仍需由发布者人工确认。未配置 AI 接口时，浏览、筛选、收藏、交易清单和手动发布等基础功能仍可使用。
+
+> 本项目是课程实习作业，并非实际交易平台。目前没有数据库、在线支付、物流或实名认证功能，演示数据主要保存在当前浏览器中。
+
+## 功能概览
+
+- **独立页面导航**：首页、集市、商品详情、发布、收藏、交易清单、循环故事和账户均使用独立 URL。
+- **商品浏览与筛选**：支持关键词搜索、分类筛选和价格排序，筛选条件会同步到地址栏。
+- **AI 辅助发布**：调用 SiliconFlow Chat Completions API，整理标题、分类、描述、标签和参考价格。
+- **人工确认机制**：AI 结果可以继续修改，提交前必须确认公开信息与实物一致。
+- **收藏与交易清单**：支持收藏商品、调整清单数量、填写校内交接计划并生成确认记录。
+- **本地状态保存**：商品发布、收藏、清单和订单记录保存在浏览器本地存储中。
+- **响应式界面**：适配桌面与移动端，并为 `prefers-reduced-motion` 提供减少动态效果的路径。
+- **服务端密钥隔离**：AI 密钥只由 Node 服务或托管运行环境读取，不进入前端构建产物。
 
 ## 页面结构
 
-- `/`：视频叙事首页与精选旧物
-- `/market`：支持搜索、分类和价格排序的校园集市
-- `/product/:id`：独立商品详情与相似旧物
-- `/publish`：AI 辅助整理、人工校对和图片预览
-- `/favorites`：收藏档案
-- `/cart`：数量管理与线下交接计划
-- `/story`：物品循环故事
-- `/account`：个人发布与交易确认记录
+| 路径 | 页面 | 主要内容 |
+| --- | --- | --- |
+| `/` | 首页 | 视频叙事首屏、功能入口与近期商品 |
+| `/market` | 校园集市 | 搜索、分类、排序和商品列表 |
+| `/product/:id` | 商品详情 | 商品图片、状态、描述与交易操作 |
+| `/publish` | AI 发布 | 原始信息输入、AI 整理、人工校对和图片预览 |
+| `/favorites` | 我的收藏 | 当前浏览器保存的收藏商品 |
+| `/cart` | 交易清单 | 数量管理、校内交接计划和确认记录 |
+| `/story` | 循环故事 | 项目主题、物品流转过程与当前记录 |
+| `/account` | 账户 | 个人发布、收藏与交易记录 |
 
-页面之间使用真实路由跳转，商品发布、收藏、交易清单和确认记录会保存在当前浏览器中。
+## 技术栈
 
-## 本地运行
+| 层级 | 使用技术 |
+| --- | --- |
+| 前端 | React 19、TypeScript、Vite |
+| 样式 | Tailwind CSS、项目级 CSS |
+| 路由 | 轻量客户端路由与 History API |
+| 状态 | React Context、浏览器 Local Storage |
+| 本地服务 | Node.js、Express |
+| AI 接口 | SiliconFlow Chat Completions API |
+| 线上运行 | Cloudflare Worker 兼容服务入口 |
+
+## 快速开始
+
+### 1. 环境要求
+
+- Node.js 20 或更高版本
+- npm 10 或兼容版本
+
+### 2. 安装依赖
 
 ```bash
+git clone https://github.com/354657951/Echo_Market.git
+cd Echo_Market
 npm install
-npm run dev:all
 ```
 
-页面默认运行在 `http://localhost:5173`，本地接口默认运行在 `http://127.0.0.1:8787`。
+### 3. 配置本地环境
 
-## 登录账号
-
-默认课程演示账号：
-
-```text
-账号：campus
-密码：Echo@2026
-```
-
-部署时可以通过 `APP_USERNAME`、`APP_PASSWORD` 和 `APP_SESSION_SECRET` 修改登录账号、密码与会话签名密钥。
-
-## AI 接口配置
-
-复制 `.env.example` 为 `.env`，填写：
+复制 `.env.example` 为 `.env`，再填写本地配置：
 
 ```env
 AI_API_URL=https://api.siliconflow.cn/v1/chat/completions
 AI_API_KEY=你的服务端密钥
 AI_MODEL=Qwen/Qwen3-8B
+
 APP_USERNAME=campus
-APP_PASSWORD=Echo@2026
-APP_SESSION_SECRET=随机且足够长的字符串
+APP_PASSWORD=请设置本地演示密码
+APP_SESSION_SECRET=请填写随机且足够长的字符串
 PORT=8787
 ```
 
-API Key 只由本地 Node 服务或 Sites 生产环境读取，不会进入浏览器构建产物。默认使用 SiliconFlow 的 Chat Completions 接口，以 `messages` 发送商品原始信息，并要求模型返回 JSON；服务端同时保留对 Responses API `output_text` 的兼容。
+`.env` 已被 Git 忽略，请勿把 API Key、正式密码或会话密钥提交到仓库。
 
-## 生产构建
+### 4. 启动项目
+
+```bash
+npm run dev:all
+```
+
+- 前端页面：`http://localhost:5173`
+- 本地接口：`http://127.0.0.1:8787`
+
+### 5. 生产构建
 
 ```bash
 npm run build
 npm run preview
 ```
 
+## 演示登录
+
+线上课程演示账号：
+
+```text
+账号：campus
+密码：Echo@2026
+```
+
+本地开发和重新部署时，可以通过 `APP_USERNAME`、`APP_PASSWORD` 与 `APP_SESSION_SECRET` 覆盖账号和会话配置。
+
+## AI 发布流程
+
+```text
+用户填写真实情况
+        ↓
+服务端调用 SiliconFlow
+        ↓
+返回结构化商品字段
+        ↓
+用户修改并确认信息
+        ↓
+生成本地商品记录
+```
+
+浏览器只请求项目自己的 `/api/ai-polish` 接口。服务端负责读取 AI 密钥、构造提示内容并解析 JSON 结果，避免把密钥发送到前端。
+
+## 项目结构
+
+```text
+Echo_Market/
+├─ docs/
+│  ├─ design/                    # 原始视觉提示词
+│  └─ requirements/              # 课程项目任务书
+├─ public/
+│  └─ products/                  # 演示商品图片
+├─ scripts/
+│  └─ prepare-sites-build.mjs    # 托管构建整理脚本
+├─ src/
+│  ├─ components/
+│  │  ├─ auth/                   # 登录与会话界面
+│  │  ├─ layout/                 # 公共导航与页脚
+│  │  ├─ market/                 # 商品展示组件
+│  │  └─ motion/                 # 入场与文字动效组件
+│  ├─ config/                    # 公共媒体配置
+│  ├─ data/                      # 演示商品数据
+│  ├─ pages/                     # 各独立路由页面
+│  ├─ router/                    # 客户端路由
+│  ├─ state/                     # 全局状态与本地持久化
+│  ├─ types/                     # TypeScript 类型
+│  ├─ App.tsx                    # 页面分发与登录状态
+│  ├─ index.css                  # 全站样式与响应式规则
+│  └─ main.tsx                   # 前端入口
+├─ worker/
+│  └─ index.js                   # 线上鉴权、AI 接口与 SPA 回退
+├─ server.mjs                    # 本地 Node API 服务
+├─ package.json
+└─ vite.config.ts
+```
+
 ## 数据与隐私
 
-- 商品、收藏和清单保存在浏览器本地存储中。
-- 上传图片在浏览器内转换为预览数据，不会自动上传到外部服务。
-- 页面提示用户当面验货，避免通过不明链接付款。
+- 商品、收藏、交易清单和确认记录默认保存在浏览器本地。
+- 用户选择的商品图片只在浏览器内转换为预览数据，不会自动上传到第三方服务。
+- AI 接口只接收用户主动填写的商品说明、成色和期望价格。
+- 项目不应保存真实身份证件、支付信息、联系方式或其他敏感资料。
+- 课程任务书和原始视觉提示词位于 `docs/`，便于提交时核对要求与设计来源。
+
+## 当前边界
+
+- 浏览器数据不会自动同步到其他设备。
+- 商品发布记录没有连接数据库，清除浏览器数据后会消失。
+- 交易流程用于课程演示，最终交接仍需双方线下确认。
+- AI 输出可能不准确，必须由发布者检查后再提交。
+
+---
+
+<div align="center">
+
+**回声集 · 让旧物继续流动**
+
+本科暑期实习小组课程项目
+
+</div>

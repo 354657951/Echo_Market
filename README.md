@@ -126,16 +126,7 @@ GitHub Pages 静态演示构建：
 npm run build:pages
 ```
 
-## 演示登录
 
-线上课程演示账号：
-
-```text
-账号：campus
-密码：Echo@2026
-```
-
-本地开发和重新部署时，可以通过 `APP_USERNAME`、`APP_PASSWORD` 与 `APP_SESSION_SECRET` 覆盖账号和会话配置。
 
 ## AI 发布流程
 

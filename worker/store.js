@@ -459,14 +459,16 @@ async function deleteProduct(env, productId) {
   }
 
   const db = await ensureStore(env)
-  const product = await db.prepare('SELECT image FROM products WHERE id = ?').bind(productId).first()
+  const product = await db
+    .prepare('DELETE FROM products WHERE id = ? RETURNING image')
+    .bind(productId)
+    .first()
   if (!product) return json({ message: '商品不存在或已被删除。' }, 404)
 
   const updatedAt = nowIso()
   await db.batch([
     db.prepare('DELETE FROM favorites WHERE product_id = ?').bind(productId),
     db.prepare('DELETE FROM cart_items WHERE product_id = ?').bind(productId),
-    db.prepare('DELETE FROM products WHERE id = ?').bind(productId),
     sharedUpdateStatement(db, updatedAt),
   ])
 

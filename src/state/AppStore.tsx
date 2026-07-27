@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { withBase } from '../config/runtime'
 import { products } from '../data/products'
 import type { ListingDraft, Order, Product } from '../types/market'
 
@@ -127,7 +128,7 @@ export function AppStoreProvider({
       condition: draft.condition,
       campus: '待与买家协商',
       seller: currentUser,
-      image: draft.image || '/products/lamp.jpg',
+      image: draft.image || withBase('/products/lamp.jpg'),
       tags: draft.tags
         .split(/[·、,，]/)
         .map((tag) => tag.trim())

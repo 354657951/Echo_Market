@@ -1,3 +1,4 @@
+import { withBase } from '../config/runtime'
 import type { Product } from '../types/market'
 
 // 课程演示使用的基础商品数据；用户发布的商品由全局状态在运行时追加。
@@ -11,7 +12,7 @@ export const products: Product[] = [
     condition: '九成新',
     campus: '一校区 11 公寓',
     seller: '林同学',
-    image: '/products/keyboard.jpg',
+    image: withBase('/products/keyboard.jpg'),
     tags: ['键盘', '轻办公', '当面验货'],
     postedAt: '今天 09:24',
   },
@@ -24,7 +25,7 @@ export const products: Product[] = [
     condition: '八五成新',
     campus: '科学园 2A',
     seller: '周同学',
-    image: '/products/camera.jpg',
+    image: withBase('/products/camera.jpg'),
     tags: ['摄影', '配件齐全', '可试机'],
     postedAt: '昨天 18:10',
   },
@@ -37,7 +38,7 @@ export const products: Product[] = [
     condition: '九成新',
     campus: '二区图书馆',
     seller: '陈同学',
-    image: '/products/headphones.jpg',
+    image: withBase('/products/headphones.jpg'),
     tags: ['音乐', '有线耳机', '试听'],
     postedAt: '07 月 24 日',
   },
@@ -50,7 +51,7 @@ export const products: Product[] = [
     condition: '七五成新',
     campus: '主楼大厅',
     seller: '许同学',
-    image: '/products/books.jpg',
+    image: withBase('/products/books.jpg'),
     tags: ['教材', '计算机', '打包出'],
     postedAt: '07 月 23 日',
   },
@@ -63,7 +64,7 @@ export const products: Product[] = [
     condition: '八成新',
     campus: '土木楼东门',
     seller: '沈同学',
-    image: '/products/bicycle.jpg',
+    image: withBase('/products/bicycle.jpg'),
     tags: ['通勤', '变速', '可试骑'],
     postedAt: '07 月 22 日',
   },
@@ -76,7 +77,7 @@ export const products: Product[] = [
     condition: '九成新',
     campus: '一校区 5 公寓',
     seller: '顾同学',
-    image: '/products/lamp.jpg',
+    image: withBase('/products/lamp.jpg'),
     tags: ['宿舍', '阅读', '暖光'],
     postedAt: '07 月 21 日',
   },

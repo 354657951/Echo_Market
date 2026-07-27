@@ -8,6 +8,7 @@
     "api": "node server.mjs",
     "dev:all": "concurrently -k -n API,WEB -c yellow,cyan \"npm:api\" \"npm:dev\"",
     "build": "tsc && vite build && node scripts/prepare-sites-build.mjs",
+    "build:pages": "tsc && vite build --mode github-pages",
     "preview": "vite preview"
   },
   "devDependencies": {

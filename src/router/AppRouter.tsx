@@ -8,6 +8,7 @@ import {
   useMemo,
   useState,
 } from 'react'
+import { IS_GITHUB_PAGES_DEMO } from '../config/runtime'
 
 type NavigateOptions = {
   replace?: boolean
@@ -21,8 +22,16 @@ type RouterValue = {
 
 const RouterContext = createContext<RouterValue | null>(null)
 
-// 从浏览器地址栏读取当前路径，作为轻量路由的唯一数据源。
+// 完整版使用 History API；静态演示版使用 Hash 路由，避免 Pages 刷新深层链接时返回 404。
 function currentLocation() {
+  if (IS_GITHUB_PAGES_DEMO) {
+    const route = window.location.hash.replace(/^#/, '') || '/'
+    const queryStart = route.indexOf('?')
+    return {
+      pathname: queryStart >= 0 ? route.slice(0, queryStart) : route,
+      search: queryStart >= 0 ? route.slice(queryStart) : '',
+    }
+  }
   return {
     pathname: window.location.pathname,
     search: window.location.search,
@@ -35,16 +44,27 @@ export function BrowserRouter({ children }: { children: ReactNode }) {
   useEffect(() => {
     // 监听浏览器前进与后退，保持页面状态和地址栏同步。
     const syncLocation = () => setLocation(currentLocation())
-    window.addEventListener('popstate', syncLocation)
-    return () => window.removeEventListener('popstate', syncLocation)
+    const eventName = IS_GITHUB_PAGES_DEMO ? 'hashchange' : 'popstate'
+    window.addEventListener(eventName, syncLocation)
+    return () => window.removeEventListener(eventName, syncLocation)
   }, [])
 
   const value = useMemo<RouterValue>(() => ({
     ...location,
     navigate(to, options) {
       // replace 用于筛选条件等不需要新增历史记录的场景。
-      if (options?.replace) window.history.replaceState(null, '', to)
-      else window.history.pushState(null, '', to)
+      if (IS_GITHUB_PAGES_DEMO) {
+        const nextHash = `#${to}`
+        if (options?.replace) {
+          window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${nextHash}`)
+        } else {
+          window.location.hash = to
+        }
+      } else if (options?.replace) {
+        window.history.replaceState(null, '', to)
+      } else {
+        window.history.pushState(null, '', to)
+      }
       setLocation(currentLocation())
       window.scrollTo({ top: 0, behavior: 'instant' })
     },
@@ -82,7 +102,8 @@ export function Link({ children, onClick, target, to, ...props }: LinkProps) {
     navigate(to)
   }
 
-  return <a {...props} href={to} onClick={follow} target={target}>{children}</a>
+  const href = IS_GITHUB_PAGES_DEMO ? `#${to}` : to
+  return <a {...props} href={href} onClick={follow} target={target}>{children}</a>
 }
 
 type NavLinkProps = Omit<LinkProps, 'className'> & {

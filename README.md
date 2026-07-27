@@ -12,7 +12,8 @@
 [![AI API](https://img.shields.io/badge/AI-SiliconFlow-171717)](https://siliconflow.cn/)
 [![Course Project](https://img.shields.io/badge/Type-Course_Project-8B8B8B)](#项目说明)
 
-[在线体验](https://echo-market-campus.ldwmrbcilqkbv.chatgpt.site) ·
+[完整在线版](https://echo-market-campus.ldwmrbcilqkbv.chatgpt.site) ·
+[GitHub Pages 静态演示](https://354657951.github.io/Echo_Market/) ·
 [功能概览](#功能概览) ·
 [快速开始](#快速开始) ·
 [项目结构](#项目结构)
@@ -28,6 +29,8 @@
 项目使用独立账号密码登录，不依赖 ChatGPT 账号。AI 用于整理发布者已经提供的商品信息；标题、成色、价格、瑕疵和交易方式仍需由发布者人工确认。未配置 AI 接口时，浏览、筛选、收藏、交易清单和手动发布等基础功能仍可使用。
 
 > 本项目是课程实习作业，并非实际交易平台。目前没有数据库、在线支付、物流或实名认证功能，演示数据主要保存在当前浏览器中。
+
+> GitHub Pages 版本用于快速查看界面与前端交互，可直接访问，无需登录。由于 GitHub Pages 只托管静态文件，该版本不连接账号会话和 AI 服务；完整登录与 AI 发布请使用上方“完整在线版”。
 
 ## 功能概览
 
@@ -113,6 +116,12 @@ npm run build
 npm run preview
 ```
 
+GitHub Pages 静态演示构建：
+
+```bash
+npm run build:pages
+```
+
 ## 演示登录
 
 线上课程演示账号：
@@ -144,6 +153,8 @@ npm run preview
 
 ```text
 Echo_Market/
+├─ .github/
+│  └─ workflows/                 # GitHub Pages 自动部署
 ├─ docs/
 │  ├─ design/                    # 原始视觉提示词
 │  └─ requirements/              # 课程项目任务书
@@ -187,6 +198,7 @@ Echo_Market/
 - 商品发布记录没有连接数据库，清除浏览器数据后会消失。
 - 交易流程用于课程演示，最终交接仍需双方线下确认。
 - AI 输出可能不准确，必须由发布者检查后再提交。
+- GitHub Pages 是静态演示入口，不包含服务端登录、会话与 AI 接口。
 
 ---
 

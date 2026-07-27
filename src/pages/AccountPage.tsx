@@ -1,3 +1,4 @@
+import { FULL_SITE_URL, IS_GITHUB_PAGES_DEMO } from '../config/runtime'
 import { Link, useSearchParams } from '../router/AppRouter'
 import { useAppStore } from '../state/AppStore'
 
@@ -15,7 +16,13 @@ export function AccountPage({ onLogout }: { onLogout: () => Promise<void> }) {
           <h1>{currentUser}</h1>
           <p>欢迎回到你的校园循环档案。</p>
         </div>
-        <button className="outline-action" onClick={onLogout} type="button">退出当前账号</button>
+        {IS_GITHUB_PAGES_DEMO ? (
+          <a className="outline-action" href={FULL_SITE_URL} rel="noreferrer" target="_blank">
+            打开完整在线版
+          </a>
+        ) : (
+          <button className="outline-action" onClick={onLogout} type="button">退出当前账号</button>
+        )}
       </section>
 
       <section className="route-section account-stats">

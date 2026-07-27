@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { FULL_SITE_URL, IS_GITHUB_PAGES_DEMO } from '../../config/runtime'
 import { NavLink } from '../../router/AppRouter'
 import { useAppStore } from '../../state/AppStore'
 
@@ -59,7 +60,13 @@ export function SiteLayout({
           <NavLink to="/favorites">查看收藏</NavLink>
           <NavLink to="/story">了解循环计划</NavLink>
         </div>
-        <button className="footer-logout" onClick={onLogout} type="button">退出登录</button>
+        {IS_GITHUB_PAGES_DEMO ? (
+          <a className="footer-logout" href={FULL_SITE_URL} rel="noreferrer" target="_blank">
+            打开完整在线版
+          </a>
+        ) : (
+          <button className="footer-logout" onClick={onLogout} type="button">退出登录</button>
+        )}
       </footer>
     </div>
   )

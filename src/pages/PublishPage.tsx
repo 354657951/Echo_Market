@@ -1,4 +1,5 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { IS_GITHUB_PAGES_DEMO, withBase } from '../config/runtime'
 import { categories } from '../data/products'
 import { useNavigate } from '../router/AppRouter'
 import { useAppStore } from '../state/AppStore'
@@ -20,7 +21,11 @@ export function PublishPage() {
   const { publishProduct } = useAppStore()
   const [draft, setDraft] = useState<ListingDraft>(emptyDraft)
   const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
-  const [aiMessage, setAiMessage] = useState('输入物品现状，AI 将整理标题、分类、标签和可信描述。')
+  const [aiMessage, setAiMessage] = useState(
+    IS_GITHUB_PAGES_DEMO
+      ? '当前为 GitHub Pages 静态演示版，可手动填写并发布；AI 整理请使用完整在线版。'
+      : '输入物品现状，AI 将整理标题、分类、标签和可信描述。',
+  )
 
   // 使用泛型更新单个字段，保证字段名和值类型一致。
   function updateDraft<K extends keyof ListingDraft>(key: K, value: ListingDraft[K]) {
@@ -43,6 +48,11 @@ export function PublishPage() {
 
   async function polishWithAi() {
     // AI 只整理表达，用户仍可修改每个字段并确认真实性。
+    if (IS_GITHUB_PAGES_DEMO) {
+      setAiStatus('error')
+      setAiMessage('静态演示版不连接服务端 AI。你仍可手动填写下方字段并完成发布。')
+      return
+    }
     if (draft.rawDescription.trim().length < 8) {
       setAiStatus('error')
       setAiMessage('请先输入至少 8 个字的物品信息。')
@@ -133,8 +143,15 @@ export function PublishPage() {
               value={draft.price}
             />
           </div>
-          <button className="ai-button full" disabled={aiStatus === 'loading'} onClick={polishWithAi} type="button">
-            {aiStatus === 'loading' ? 'AI 正在整理…' : '用 AI 整理商品信息'}
+          <button
+            className="ai-button full"
+            disabled={aiStatus === 'loading' || IS_GITHUB_PAGES_DEMO}
+            onClick={polishWithAi}
+            type="button"
+          >
+            {IS_GITHUB_PAGES_DEMO
+              ? 'AI 整理仅在完整在线版可用'
+              : aiStatus === 'loading' ? 'AI 正在整理…' : '用 AI 整理商品信息'}
           </button>
           <div className="status-row full" data-status={aiStatus}>
             <span>{aiStatus === 'success' ? '已完成' : aiStatus === 'error' ? '需要处理' : '准备就绪'}</span>
@@ -191,7 +208,9 @@ export function PublishPage() {
 
         <aside className="listing-preview">
           <p className="preview-label">LIVE PREVIEW</p>
-          <div className="preview-image"><img alt="待发布商品预览" src={draft.image || '/products/lamp.jpg'} /></div>
+          <div className="preview-image">
+            <img alt="待发布商品预览" src={draft.image || withBase('/products/lamp.jpg')} />
+          </div>
           <div className="preview-content">
             <p>{draft.category} · {draft.condition}</p>
             <h3>{draft.title || '你的商品标题会出现在这里'}</h3>

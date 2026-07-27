@@ -65,8 +65,8 @@
 | 前端 | React 19、TypeScript、Vite |
 | 样式 | Tailwind CSS、项目级 CSS |
 | 路由 | 轻量客户端路由与 History API |
-| 状态 | React Context、共享 D1 数据库、定时同步 |
-| 图片 | R2 对象存储、本地开发文件存储 |
+| 状态 | React Context、共享 D1 数据库或服务端文档存储、定时同步 |
+| 图片 | R2 对象存储；文档存储模式下使用受限尺寸的数据图片 |
 | 本地服务 | Node.js、Express |
 | AI 接口 | SiliconFlow Chat Completions API |
 | 线上运行 | Cloudflare Worker 兼容服务入口 |
@@ -98,6 +98,7 @@ AI_MODEL=Qwen/Qwen3.5-27B
 APP_USERNAME=campus
 APP_PASSWORD=请设置本地演示密码
 APP_SESSION_SECRET=请填写随机且足够长的字符串
+STORE_BLOB_URL=可选的服务端共享文档地址
 PORT=8787
 ```
 
@@ -197,7 +198,7 @@ Echo_Market/
 
 ## 数据与隐私
 
-- 完整在线版的商品、收藏、交易清单和确认记录保存在项目共享数据库中。
+- 完整在线版的商品、收藏、交易清单和确认记录保存在服务端共享存储中；优先使用 D1/R2，托管环境未提供绑定时可通过 `STORE_BLOB_URL` 使用同源接口后方的文档存储。
 - 用户主动发布的商品图片保存到项目对象存储中，供其他已登录组员查看。
 - 本地开发数据保存在被 Git 忽略的 `.local-data` 目录，不会进入仓库。
 - AI 接口只接收用户主动填写的商品说明、成色和期望价格。

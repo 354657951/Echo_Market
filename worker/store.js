@@ -56,6 +56,59 @@ function json(data, status = 200) {
   })
 }
 
+function hasDocumentStore(env) {
+  return Boolean(env.STORE_BLOB_URL)
+}
+
+async function fetchDocumentStore(url, init = {}) {
+  let response
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    response = await fetch(url, init)
+    if (response.ok || (response.status !== 429 && response.status < 500)) return response
+    await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)))
+  }
+  return response
+}
+
+function normalizeDocumentStore(value) {
+  const raw = value && typeof value === 'object' ? value : {}
+  const products = Array.isArray(raw.products) ? raw.products : []
+  const knownProductIds = new Set(products.map((product) => product?.id).filter(Boolean))
+  const missingSeedProducts = seedProducts.filter((product) => !knownProductIds.has(product.id))
+
+  return {
+    products: [...products, ...missingSeedProducts],
+    favorites: Array.isArray(raw.favorites) ? raw.favorites.filter(Boolean) : [],
+    cart: raw.cart && typeof raw.cart === 'object' && !Array.isArray(raw.cart) ? raw.cart : {},
+    orders: Array.isArray(raw.orders) ? raw.orders : [],
+    updatedAt: typeof raw.updatedAt === 'string' ? raw.updatedAt : nowIso(),
+  }
+}
+
+async function readDocumentStore(env) {
+  if (!hasDocumentStore(env)) throw new Error('共享数据服务尚未配置。')
+  const response = await fetchDocumentStore(env.STORE_BLOB_URL, {
+    headers: { Accept: 'application/json', 'Cache-Control': 'no-store' },
+  })
+  if (!response.ok) throw new Error('共享数据读取失败，请稍后重试。')
+  return normalizeDocumentStore(await response.json())
+}
+
+async function writeDocumentStore(env, store) {
+  if (!hasDocumentStore(env)) throw new Error('共享数据服务尚未配置。')
+  store.updatedAt = nowIso()
+  const response = await fetchDocumentStore(env.STORE_BLOB_URL, {
+    method: 'PUT',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(store),
+  })
+  if (!response.ok) throw new Error('共享数据保存失败，请稍后重试。')
+  return normalizeDocumentStore(await response.json())
+}
+
 function requireStoreBindings(env) {
   if (!env.DB) throw new Error('共享数据库尚未绑定。')
   return env.DB
@@ -154,6 +207,7 @@ async function ensureStore(env) {
 }
 
 async function snapshot(env) {
+  if (!env.DB) return readDocumentStore(env)
   const db = await ensureStore(env)
   const [productRows, favoriteRows, cartRows, orderRows, updatedRow] = await Promise.all([
     db.prepare(
@@ -230,7 +284,10 @@ function decodeDataImage(dataUrl) {
 async function persistImage(env, dataUrl) {
   const image = decodeDataImage(dataUrl)
   if (!image) return cleanText(dataUrl, 2000) || '/products/lamp.jpg'
-  if (!env.MEDIA) throw new Error('图片存储尚未绑定，请稍后重试。')
+  if (!env.MEDIA) {
+    if (hasDocumentStore(env)) return dataUrl
+    throw new Error('图片存储尚未绑定，请稍后重试。')
+  }
 
   const key = `listing-${crypto.randomUUID()}.${image.extension}`
   await env.MEDIA.put(key, image.bytes, {
@@ -242,7 +299,6 @@ async function persistImage(env, dataUrl) {
 async function createProduct(request, env, currentUser) {
   const payload = await request.json()
   const fields = validateProductInput(payload)
-  const db = await ensureStore(env)
   const createdAt = nowIso()
   const product = {
     id: `user-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
@@ -253,6 +309,14 @@ async function createProduct(request, env, currentUser) {
     postedAt: '刚刚发布',
     createdAt,
   }
+  if (!env.DB) {
+    const store = await readDocumentStore(env)
+    store.products.unshift(product)
+    const savedStore = await writeDocumentStore(env, store)
+    return json({ product, store: savedStore }, 201)
+  }
+
+  const db = await ensureStore(env)
   await db.batch([
     productInsert(db, product, 'shared'),
     sharedUpdateStatement(db, createdAt),
@@ -263,6 +327,15 @@ async function createProduct(request, env, currentUser) {
 async function updateFavorite(request, env, productId) {
   const payload = await request.json()
   const favorite = Boolean(payload.favorite)
+  if (!env.DB) {
+    const store = await readDocumentStore(env)
+    const favorites = new Set(store.favorites)
+    if (favorite) favorites.add(productId)
+    else favorites.delete(productId)
+    store.favorites = [...favorites]
+    return json({ store: await writeDocumentStore(env, store) })
+  }
+
   const db = await ensureStore(env)
   const updatedAt = nowIso()
   if (favorite) {
@@ -283,6 +356,13 @@ async function updateFavorite(request, env, productId) {
 async function updateCart(request, env, productId) {
   const payload = await request.json()
   const quantity = Math.max(0, Math.min(5, Math.round(Number(payload.quantity) || 0)))
+  if (!env.DB) {
+    const store = await readDocumentStore(env)
+    if (quantity === 0) delete store.cart[productId]
+    else store.cart[productId] = quantity
+    return json({ store: await writeDocumentStore(env, store) })
+  }
+
   const db = await ensureStore(env)
   const updatedAt = nowIso()
   if (quantity === 0) {
@@ -309,19 +389,32 @@ async function createOrder(request, env) {
   const contactTime = cleanText(payload.contactTime, 80)
   if (!pickup || !contactTime) return json({ message: '请补全交接地点和联系时间。' }, 400)
 
-  const db = await ensureStore(env)
-  const rows = await db.prepare(
-    `SELECT p.*, c.quantity
-     FROM cart_items c
-     INNER JOIN products p ON p.id = c.product_id
-     ORDER BY c.updated_at DESC`,
-  ).all()
-  if (rows.results.length === 0) return json({ message: '交易清单为空。' }, 400)
+  let db
+  let documentStore
+  let items
+  if (!env.DB) {
+    documentStore = await readDocumentStore(env)
+    items = Object.entries(documentStore.cart)
+      .map(([productId, quantity]) => ({
+        product: documentStore.products.find((product) => product.id === productId),
+        quantity: Number(quantity),
+      }))
+      .filter((item) => item.product && item.quantity > 0)
+  } else {
+    db = await ensureStore(env)
+    const rows = await db.prepare(
+      `SELECT p.*, c.quantity
+       FROM cart_items c
+       INNER JOIN products p ON p.id = c.product_id
+       ORDER BY c.updated_at DESC`,
+    ).all()
+    items = rows.results.map((row) => ({
+      product: mapProduct(row),
+      quantity: Number(row.quantity),
+    }))
+  }
+  if (items.length === 0) return json({ message: '交易清单为空。' }, 400)
 
-  const items = rows.results.map((row) => ({
-    product: mapProduct(row),
-    quantity: Number(row.quantity),
-  }))
   const total = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
   const createdAtIso = nowIso()
   const order = {
@@ -336,6 +429,12 @@ async function createOrder(request, env) {
     contactTime,
     items,
   }
+  if (!env.DB) {
+    documentStore.orders.unshift(order)
+    documentStore.cart = {}
+    return json({ order, store: await writeDocumentStore(env, documentStore) }, 201)
+  }
+
   await db.batch([
     db.prepare('INSERT INTO orders (id, payload_json, created_at) VALUES (?, ?, ?)')
       .bind(order.id, JSON.stringify(order), createdAtIso),
@@ -361,6 +460,55 @@ async function importLegacyProduct(env, db, rawProduct) {
 
 async function bootstrapLegacy(request, env) {
   const payload = await request.json()
+  if (!env.DB) {
+    const store = await readDocumentStore(env)
+    const knownProductIds = new Set(store.products.map((product) => product.id))
+    for (const rawProduct of (Array.isArray(payload.userProducts) ? payload.userProducts : []).slice(0, 50)) {
+      try {
+        const fields = validateProductInput(rawProduct)
+        const id = cleanText(rawProduct.id, 100) || `legacy-${crypto.randomUUID()}`
+        if (knownProductIds.has(id)) continue
+        store.products.unshift({
+          id,
+          ...fields,
+          campus: cleanText(rawProduct.campus, 100) || '待与买家协商',
+          seller: cleanText(rawProduct.seller, 80) || 'campus',
+          image: await persistImage(env, rawProduct.image),
+          postedAt: cleanText(rawProduct.postedAt, 80) || '历史发布',
+          createdAt: nowIso(),
+        })
+        knownProductIds.add(id)
+      } catch {
+        // 单条旧数据异常时跳过，不阻断其余有效记录迁移。
+      }
+    }
+
+    store.favorites = [
+      ...new Set([
+        ...store.favorites,
+        ...(Array.isArray(payload.favorites) ? payload.favorites : []).slice(0, 200),
+      ]),
+    ]
+    for (const [productId, rawQuantity] of Object.entries(payload.cart || {}).slice(0, 200)) {
+      const quantity = Math.max(0, Math.min(5, Math.round(Number(rawQuantity) || 0)))
+      if (quantity > 0) {
+        store.cart[cleanText(productId, 100)] = Math.max(
+          Number(store.cart[productId]) || 0,
+          quantity,
+        )
+      }
+    }
+    const knownOrderIds = new Set(store.orders.map((order) => order?.id).filter(Boolean))
+    for (const order of (Array.isArray(payload.orders) ? payload.orders : []).slice(0, 50)) {
+      const orderId = cleanText(order?.id, 100)
+      if (orderId && !knownOrderIds.has(orderId)) {
+        store.orders.push(order)
+        knownOrderIds.add(orderId)
+      }
+    }
+    return json({ store: await writeDocumentStore(env, store), imported: true })
+  }
+
   const db = await ensureStore(env)
   const statements = []
   const updatedAt = nowIso()

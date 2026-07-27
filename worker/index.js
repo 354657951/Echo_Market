@@ -218,20 +218,14 @@ export default {
     const url = new URL(request.url)
 
     if (url.pathname === '/api/health') {
-      const platformBindings = Object.fromEntries(
-        Object.entries(env)
-          .filter(([, value]) => value && typeof value === 'object')
-          .map(([key, value]) => [key, value.constructor?.name || typeof value]),
-      )
       return json({
         ok: true,
         aiConfigured: Boolean(env.AI_API_KEY && env.AI_MODEL),
         aiProvider: (env.AI_API_URL || defaultAiApiUrl).includes('siliconflow.cn')
           ? 'siliconflow'
           : 'compatible',
-        sharedStoreConfigured: Boolean(env.DB),
-        mediaStoreConfigured: Boolean(env.MEDIA),
-        platformBindings,
+        sharedStoreConfigured: Boolean(env.DB || env.STORE_BLOB_URL),
+        mediaStoreConfigured: Boolean(env.MEDIA || env.STORE_BLOB_URL),
       })
     }
 

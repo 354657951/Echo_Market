@@ -213,7 +213,7 @@ export function AppStoreProvider({
         setSyncMessage('暂时无法获取最新数据')
       }
     }
-    const timer = window.setInterval(refreshSilently, 12000)
+    const timer = window.setInterval(refreshSilently, 30000)
     window.addEventListener('focus', refreshSilently)
     return () => {
       window.clearInterval(timer)

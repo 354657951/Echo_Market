@@ -218,6 +218,11 @@ export default {
     const url = new URL(request.url)
 
     if (url.pathname === '/api/health') {
+      const platformBindings = Object.fromEntries(
+        Object.entries(env)
+          .filter(([, value]) => value && typeof value === 'object')
+          .map(([key, value]) => [key, value.constructor?.name || typeof value]),
+      )
       return json({
         ok: true,
         aiConfigured: Boolean(env.AI_API_KEY && env.AI_MODEL),
@@ -226,6 +231,7 @@ export default {
           : 'compatible',
         sharedStoreConfigured: Boolean(env.DB),
         mediaStoreConfigured: Boolean(env.MEDIA),
+        platformBindings,
       })
     }
 

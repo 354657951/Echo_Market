@@ -1,12 +1,23 @@
+import { useState } from 'react'
 import { FULL_SITE_URL, IS_GITHUB_PAGES_DEMO } from '../config/runtime'
 import { Link, useSearchParams } from '../router/AppRouter'
 import { useAppStore } from '../state/AppStore'
 
 export function AccountPage({ onLogout }: { onLogout: () => Promise<void> }) {
   const { currentUser, favorites, cartCount, userProducts, orders } = useAppStore()
+  const [loggingOut, setLoggingOut] = useState(false)
   const [params] = useSearchParams()
   // 新生成的确认单通过查询参数高亮，帮助用户快速定位结果。
   const highlightedOrder = params.get('order')
+
+  async function logoutWithFeedback() {
+    setLoggingOut(true)
+    try {
+      await onLogout()
+    } finally {
+      setLoggingOut(false)
+    }
+  }
 
   return (
     <main className="route-main">
@@ -21,7 +32,14 @@ export function AccountPage({ onLogout }: { onLogout: () => Promise<void> }) {
             打开完整在线版
           </a>
         ) : (
-          <button className="outline-action" onClick={onLogout} type="button">退出当前账号</button>
+          <button
+            className="outline-action"
+            disabled={loggingOut}
+            onClick={() => void logoutWithFeedback()}
+            type="button"
+          >
+            {loggingOut ? '正在安全退出…' : '退出当前账号'}
+          </button>
         )}
       </section>
 

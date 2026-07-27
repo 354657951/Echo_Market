@@ -1,6 +1,15 @@
 import 'dotenv/config'
 import { randomBytes } from 'node:crypto'
 import express from 'express'
+import {
+  bootstrapLocalStore,
+  createLocalOrder,
+  createLocalProduct,
+  getLocalStore,
+  resolveLocalMedia,
+  updateLocalCart,
+  updateLocalFavorite,
+} from './server-store.mjs'
 
 // 本地开发服务：提供账号会话和 AI 商品信息整理接口。
 const app = express()
@@ -11,7 +20,7 @@ const appUsername = process.env.APP_USERNAME || 'campus'
 const appPassword = process.env.APP_PASSWORD || 'Echo@2026'
 const defaultAiApiUrl = 'https://api.siliconflow.cn/v1/chat/completions'
 
-app.use(express.json({ limit: '1mb' }))
+app.use(express.json({ limit: '4mb' }))
 
 // 从 Cookie 字符串中读取指定字段，避免额外引入解析依赖。
 function readCookie(request, name) {
@@ -70,6 +79,8 @@ app.get('/api/health', (_request, response) => {
     aiProvider: (process.env.AI_API_URL || defaultAiApiUrl).includes('siliconflow.cn')
       ? 'siliconflow'
       : 'compatible',
+    sharedStoreConfigured: true,
+    mediaStoreConfigured: true,
   })
 })
 
@@ -183,6 +194,93 @@ app.post('/api/ai-polish', async (request, response) => {
   } catch {
     response.status(502).json({ message: '连接 AI 服务失败，请检查接口地址与网络。' })
   }
+})
+
+function requireLocalSession(request, response) {
+  const user = sessionUser(request)
+  if (!user) {
+    response.status(401).json({ message: '请先登录后再操作共享数据。' })
+    return null
+  }
+  return user
+}
+
+function storeError(response, error) {
+  response.status(500).json({
+    message: error instanceof Error ? error.message : '共享数据暂时无法处理。',
+  })
+}
+
+app.get('/api/store', async (request, response) => {
+  if (!requireLocalSession(request, response)) return
+  try {
+    response.json({ store: await getLocalStore() })
+  } catch (error) {
+    storeError(response, error)
+  }
+})
+
+app.post('/api/store/bootstrap', async (request, response) => {
+  if (!requireLocalSession(request, response)) return
+  try {
+    const { state } = await bootstrapLocalStore(request.body ?? {})
+    response.json({ store: state, imported: true })
+  } catch (error) {
+    storeError(response, error)
+  }
+})
+
+app.post('/api/products', async (request, response) => {
+  const user = requireLocalSession(request, response)
+  if (!user) return
+  try {
+    const { product, state } = await createLocalProduct(request.body ?? {}, user)
+    response.status(201).json({ product, store: state })
+  } catch (error) {
+    storeError(response, error)
+  }
+})
+
+app.put('/api/favorites/:productId', async (request, response) => {
+  if (!requireLocalSession(request, response)) return
+  try {
+    const state = await updateLocalFavorite(request.params.productId, Boolean(request.body?.favorite))
+    response.json({ store: state })
+  } catch (error) {
+    storeError(response, error)
+  }
+})
+
+app.put('/api/cart/:productId', async (request, response) => {
+  if (!requireLocalSession(request, response)) return
+  try {
+    const state = await updateLocalCart(request.params.productId, request.body?.quantity)
+    response.json({ store: state })
+  } catch (error) {
+    storeError(response, error)
+  }
+})
+
+app.post('/api/orders', async (request, response) => {
+  if (!requireLocalSession(request, response)) return
+  try {
+    const { order, state } = await createLocalOrder(request.body ?? {})
+    response.status(201).json({ order, store: state })
+  } catch (error) {
+    storeError(response, error)
+  }
+})
+
+app.get('/api/media/:filename', (request, response) => {
+  if (!requireLocalSession(request, response)) return
+  const filePath = resolveLocalMedia(request.params.filename)
+  if (!filePath) {
+    response.status(400).json({ message: '图片地址无效。' })
+    return
+  }
+  response.sendFile(filePath, (error) => {
+    if (error && !response.headersSent) response.status(404).json({ message: '图片不存在。' })
+  })
 })
 
 app.listen(port, '127.0.0.1', () => {

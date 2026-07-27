@@ -21,6 +21,7 @@ export function PublishPage() {
   const { publishProduct } = useAppStore()
   const [draft, setDraft] = useState<ListingDraft>(emptyDraft)
   const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [publishing, setPublishing] = useState(false)
   const [aiMessage, setAiMessage] = useState(
     IS_GITHUB_PAGES_DEMO
       ? '当前为 GitHub Pages 静态演示版，可手动填写并发布；AI 整理请使用完整在线版。'
@@ -42,7 +43,11 @@ export function PublishPage() {
       return
     }
     const reader = new FileReader()
-    reader.onload = () => updateDraft('image', String(reader.result))
+    reader.onload = () => {
+      updateDraft('image', String(reader.result))
+      setAiStatus('success')
+      setAiMessage('商品照片已载入，发布后会同步给其他组员。')
+    }
     reader.readAsDataURL(file)
   }
 
@@ -89,7 +94,7 @@ export function PublishPage() {
     }
   }
 
-  function submitListing(event: FormEvent<HTMLFormElement>) {
+  async function submitListing(event: FormEvent<HTMLFormElement>) {
     // 发布前再次校验关键字段，防止绕过表单约束写入无效数据。
     event.preventDefault()
     const price = Number(draft.price)
@@ -98,8 +103,18 @@ export function PublishPage() {
       setAiMessage('请补全商品标题、描述和有效价格。')
       return
     }
-    const product = publishProduct(draft)
-    navigate(`/product/${product.id}`, { replace: true })
+    setPublishing(true)
+    setAiStatus('loading')
+    setAiMessage('正在保存商品和照片到共享空间…')
+    try {
+      const product = await publishProduct(draft)
+      navigate(`/product/${product.id}`, { replace: true })
+    } catch (error) {
+      setAiStatus('error')
+      setAiMessage(error instanceof Error ? error.message : '发布失败，请稍后重试。')
+    } finally {
+      setPublishing(false)
+    }
   }
 
   return (
@@ -203,7 +218,9 @@ export function PublishPage() {
             <input required type="checkbox" />
             <span>我确认标题、价格、成色和瑕疵描述均与实物一致。</span>
           </label>
-          <button className="publish-button full" type="submit">确认信息并发布</button>
+          <button className="publish-button full" disabled={publishing} type="submit">
+            {publishing ? '正在发布并同步…' : '确认信息并发布'}
+          </button>
         </form>
 
         <aside className="listing-preview">

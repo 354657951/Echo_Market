@@ -9,19 +9,36 @@ export function CartPage() {
   const [contactTime, setContactTime] = useState('今天 18:00—20:00')
   const [agreed, setAgreed] = useState(false)
   const [message, setMessage] = useState('确认前请再次查看每件物品的成色与交接地点。')
+  const [pendingProductId, setPendingProductId] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  function confirmTrade(event: FormEvent<HTMLFormElement>) {
+  async function changeQuantity(id: string, quantity: number) {
+    setPendingProductId(id)
+    try {
+      await updateQuantity(id, quantity)
+    } catch {
+      setMessage('清单更新失败，请稍后重试。')
+    } finally {
+      setPendingProductId('')
+    }
+  }
+
+  async function confirmTrade(event: FormEvent<HTMLFormElement>) {
     // 交易确认单只记录线下交接计划，不执行在线支付。
     event.preventDefault()
     if (!agreed) {
       setMessage('请先确认当面验货与安全交易约定。')
       return
     }
+    setSubmitting(true)
+    setMessage('正在生成并同步交易确认单…')
     try {
-      const order = checkout(pickup, contactTime)
+      const order = await checkout(pickup, contactTime)
       navigate(`/account?order=${encodeURIComponent(order.id)}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '暂时无法生成确认单。')
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -53,7 +70,8 @@ export function CartPage() {
                   <div className="quantity-control">
                     <button
                       aria-label={`减少 ${product.title} 数量`}
-                      onClick={() => updateQuantity(product.id, quantity - 1)}
+                      disabled={pendingProductId === product.id}
+                      onClick={() => void changeQuantity(product.id, quantity - 1)}
                       type="button"
                     >
                       −
@@ -61,7 +79,8 @@ export function CartPage() {
                     <span>{quantity}</span>
                     <button
                       aria-label={`增加 ${product.title} 数量`}
-                      onClick={() => updateQuantity(product.id, quantity + 1)}
+                      disabled={pendingProductId === product.id || quantity >= 5}
+                      onClick={() => void changeQuantity(product.id, quantity + 1)}
                       type="button"
                     >
                       +
@@ -70,7 +89,13 @@ export function CartPage() {
                 </div>
                 <div className="cart-item-total">
                   <strong>¥{product.price * quantity}</strong>
-                  <button onClick={() => updateQuantity(product.id, 0)} type="button">移除</button>
+                  <button
+                    disabled={pendingProductId === product.id}
+                    onClick={() => void changeQuantity(product.id, 0)}
+                    type="button"
+                  >
+                    {pendingProductId === product.id ? '同步中…' : '移除'}
+                  </button>
                 </div>
               </article>
             ))
@@ -100,7 +125,9 @@ export function CartPage() {
             <span>我会当面验货，不通过陌生链接付款。</span>
           </label>
           <p className="trade-message" role="status">{message}</p>
-          <button disabled={cartItems.length === 0} type="submit">生成交易确认单</button>
+          <button disabled={cartItems.length === 0 || submitting} type="submit">
+            {submitting ? '正在生成并同步…' : '生成交易确认单'}
+          </button>
         </form>
       </section>
     </main>

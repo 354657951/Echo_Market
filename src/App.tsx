@@ -66,9 +66,12 @@ export default function App() {
   async function logout() {
     if (IS_GITHUB_PAGES_DEMO) return
     // 服务端清除会话后再重置前端身份，避免页面残留登录状态。
-    await fetch('/api/auth/logout', { method: 'POST' })
-    setCurrentUser('')
-    setAuthState('signed-out')
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } finally {
+      setCurrentUser('')
+      setAuthState('signed-out')
+    }
   }
 
   if (authState === 'checking') return <AuthChecking />

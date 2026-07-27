@@ -1,3 +1,5 @@
+import { handleStoreApi, serveMedia } from './store.js'
+
 function json(data, status = 200) {
   // 所有 API 统一返回 UTF-8 JSON，方便前端集中处理。
   return new Response(JSON.stringify(data), {
@@ -222,6 +224,8 @@ export default {
         aiProvider: (env.AI_API_URL || defaultAiApiUrl).includes('siliconflow.cn')
           ? 'siliconflow'
           : 'compatible',
+        sharedStoreConfigured: Boolean(env.DB),
+        mediaStoreConfigured: Boolean(env.MEDIA),
       })
     }
 
@@ -248,6 +252,27 @@ export default {
         return json({ message: '请先登录后再使用 AI 发布功能。' }, 401)
       }
       return polishListing(request, env)
+    }
+
+    if (url.pathname.startsWith('/api/media/')) {
+      if (!(await authenticatedUser(request, env))) {
+        return json({ message: '请先登录后再查看商品图片。' }, 401)
+      }
+      return serveMedia(request, env, url)
+    }
+
+    if (
+      url.pathname === '/api/store'
+      || url.pathname === '/api/store/bootstrap'
+      || url.pathname === '/api/products'
+      || url.pathname === '/api/orders'
+      || url.pathname.startsWith('/api/favorites/')
+      || url.pathname.startsWith('/api/cart/')
+    ) {
+      const user = await authenticatedUser(request, env)
+      if (!user) return json({ message: '请先登录后再操作共享数据。' }, 401)
+      const response = await handleStoreApi(request, env, user, url)
+      if (response) return response
     }
 
     const assetResponse = await env.ASSETS.fetch(request)

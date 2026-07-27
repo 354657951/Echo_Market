@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { FULL_SITE_URL, IS_GITHUB_PAGES_DEMO } from '../../config/runtime'
 import { NavLink } from '../../router/AppRouter'
 import { useAppStore } from '../../state/AppStore'
@@ -18,7 +18,24 @@ export function SiteLayout({
   children: ReactNode
   onLogout: () => Promise<void>
 }) {
-  const { cartCount, favorites, currentUser } = useAppStore()
+  const {
+    cartCount,
+    favorites,
+    currentUser,
+    syncStatus,
+    syncMessage,
+    refreshSharedData,
+  } = useAppStore()
+  const [loggingOut, setLoggingOut] = useState(false)
+
+  async function logoutWithFeedback() {
+    setLoggingOut(true)
+    try {
+      await onLogout()
+    } finally {
+      setLoggingOut(false)
+    }
+  }
 
   return (
     <div className="site-frame">
@@ -37,6 +54,20 @@ export function SiteLayout({
           ))}
         </nav>
         <div className="site-actions">
+          {!IS_GITHUB_PAGES_DEMO && (
+            <button
+              aria-label={`${syncMessage}，点击立即刷新`}
+              className="sync-indicator"
+              data-status={syncStatus}
+              disabled={syncStatus === 'loading' || syncStatus === 'saving'}
+              onClick={() => void refreshSharedData().catch(() => undefined)}
+              title={syncMessage}
+              type="button"
+            >
+              <span aria-hidden="true" />
+              {syncStatus === 'saving' ? '保存中' : syncStatus === 'loading' ? '同步中' : syncStatus === 'error' ? '重试同步' : '已同步'}
+            </button>
+          )}
           <NavLink aria-label={`收藏 ${favorites.length} 件`} className="counter-link" to="/favorites">
             收藏 <span>{favorites.length}</span>
           </NavLink>
@@ -65,7 +96,14 @@ export function SiteLayout({
             打开完整在线版
           </a>
         ) : (
-          <button className="footer-logout" onClick={onLogout} type="button">退出登录</button>
+          <button
+            className="footer-logout"
+            disabled={loggingOut}
+            onClick={() => void logoutWithFeedback()}
+            type="button"
+          >
+            {loggingOut ? '正在退出…' : '退出登录'}
+          </button>
         )}
       </footer>
     </div>

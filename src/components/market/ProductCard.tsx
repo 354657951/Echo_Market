@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from '../../router/AppRouter'
 import { useAppStore } from '../../state/AppStore'
 import type { Product } from '../../types/market'
@@ -6,6 +7,19 @@ export function ProductCard({ product }: { product: Product }) {
   // 商品卡片只负责展示与轻量操作，详情内容由独立路由承载。
   const { favorites, toggleFavorite, addToCart } = useAppStore()
   const isFavorite = favorites.includes(product.id)
+  const [pendingAction, setPendingAction] = useState<'favorite' | 'cart' | ''>('')
+
+  async function runAction(action: 'favorite' | 'cart') {
+    setPendingAction(action)
+    try {
+      if (action === 'favorite') await toggleFavorite(product.id)
+      else await addToCart(product)
+    } catch {
+      // 全局提示已呈现失败原因，卡片只负责恢复按钮状态。
+    } finally {
+      setPendingAction('')
+    }
+  }
 
   return (
     <article className="product-card">
@@ -22,12 +36,19 @@ export function ProductCard({ product }: { product: Product }) {
       <div className="product-actions">
         <button
           aria-pressed={isFavorite}
-          onClick={() => toggleFavorite(product.id)}
+          disabled={Boolean(pendingAction)}
+          onClick={() => void runAction('favorite')}
           type="button"
         >
-          {isFavorite ? '已收藏' : '收藏'}
+          {pendingAction === 'favorite' ? '同步中…' : isFavorite ? '已收藏' : '收藏'}
         </button>
-        <button onClick={() => addToCart(product)} type="button">加入清单</button>
+        <button
+          disabled={Boolean(pendingAction)}
+          onClick={() => void runAction('cart')}
+          type="button"
+        >
+          {pendingAction === 'cart' ? '正在加入…' : '加入清单'}
+        </button>
       </div>
     </article>
   )

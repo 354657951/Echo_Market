@@ -1,0 +1,80 @@
+[
+  {
+    "id": "keyboard-01",
+    "title": "Apple 妙控键盘 · 银白",
+    "category": "数码",
+    "description": "自用一年，按键回弹正常，外观有轻微使用痕迹。适合宿舍桌面与图书馆移动办公。",
+    "price": 228,
+    "condition": "九成新",
+    "campus": "一校区 11 公寓",
+    "seller": "林同学",
+    "image": "/products/keyboard.jpg",
+    "tags": ["键盘", "轻办公", "当面验货"],
+    "postedAt": "今天 09:24"
+  },
+  {
+    "id": "camera-02",
+    "title": "富士复古微单相机",
+    "category": "数码",
+    "description": "快门与屏幕工作正常，附原装电池、充电器和腕带。适合活动记录与入门摄影。",
+    "price": 1680,
+    "condition": "八五成新",
+    "campus": "科学园 2A",
+    "seller": "周同学",
+    "image": "/products/camera.jpg",
+    "tags": ["摄影", "配件齐全", "可试机"],
+    "postedAt": "昨天 18:10"
+  },
+  {
+    "id": "headphones-03",
+    "title": "头戴式监听耳机",
+    "category": "影音",
+    "description": "声音清晰、耳罩完整，转让原因是更换了无线设备。附收纳袋与转接头。",
+    "price": 156,
+    "condition": "九成新",
+    "campus": "二区图书馆",
+    "seller": "陈同学",
+    "image": "/products/headphones.jpg",
+    "tags": ["音乐", "有线耳机", "试听"],
+    "postedAt": "07 月 24 日"
+  },
+  {
+    "id": "books-04",
+    "title": "计算机专业课教材套装",
+    "category": "学习",
+    "description": "包含数据结构、计算机网络与操作系统三本教材，少量重点标注，不影响阅读。",
+    "price": 62,
+    "condition": "七五成新",
+    "campus": "主楼大厅",
+    "seller": "许同学",
+    "image": "/products/books.jpg",
+    "tags": ["教材", "计算机", "打包出"],
+    "postedAt": "07 月 23 日"
+  },
+  {
+    "id": "bicycle-05",
+    "title": "通勤变速自行车",
+    "category": "运动",
+    "description": "刹车和变速均已保养，车架有正常使用划痕。适合校园通勤，可现场试骑。",
+    "price": 320,
+    "condition": "八成新",
+    "campus": "土木楼东门",
+    "seller": "沈同学",
+    "image": "/products/bicycle.jpg",
+    "tags": ["通勤", "变速", "可试骑"],
+    "postedAt": "07 月 22 日"
+  },
+  {
+    "id": "lamp-06",
+    "title": "暖光阅读台灯",
+    "category": "生活",
+    "description": "三档亮度、触控调光，灯臂角度可调。宿舍使用安静，无频闪问题。",
+    "price": 48,
+    "condition": "九成新",
+    "campus": "一校区 5 公寓",
+    "seller": "顾同学",
+    "image": "/products/lamp.jpg",
+    "tags": ["宿舍", "阅读", "暖光"],
+    "postedAt": "07 月 21 日"
+  }
+]

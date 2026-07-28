@@ -1,9 +1,49 @@
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from 'drizzle-orm/sqlite-core'
 
-/**
- * 商品是共享集市的事实来源。初始商品与组员发布的商品都进入同一张表，
- * 便于跨设备筛选、详情展示和交易记录引用。
- */
+// 账号表只保存密码哈希；用户名规范化字段用于不区分大小写地判重。
+export const users = sqliteTable(
+  'users',
+  {
+    id: text('id').primaryKey(),
+    username: text('username').notNull(),
+    usernameNormalized: text('username_normalized').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    uniqueIndex('users_username_normalized_idx').on(
+      table.usernameNormalized,
+    ),
+  ],
+)
+
+// 刷新令牌只存秘密部分的哈希，令牌轮换后旧值立即失效。
+export const refreshSessions = sqliteTable(
+  'refresh_sessions',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+    createdAt: text('created_at').notNull(),
+    lastUsedAt: text('last_used_at').notNull(),
+  },
+  (table) => [
+    index('refresh_sessions_user_id_idx').on(table.userId),
+  ],
+)
+
+// 商品属于公共集市，sellerId 只决定发布归属和删除权限。
 export const products = sqliteTable('products', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
@@ -13,6 +53,10 @@ export const products = sqliteTable('products', {
   condition: text('condition').notNull(),
   campus: text('campus').notNull(),
   seller: text('seller').notNull(),
+  sellerId: text('seller_id').references(() => users.id),
+  flaws: text('flaws').notNull().default(''),
+  accessories: text('accessories').notNull().default(''),
+  tradeNote: text('trade_note').notNull().default(''),
   image: text('image').notNull(),
   tagsJson: text('tags_json').notNull(),
   postedAt: text('posted_at').notNull(),
@@ -20,28 +64,51 @@ export const products = sqliteTable('products', {
   source: text('source').notNull().default('shared'),
 })
 
-/**
- * 小组统一使用管理员账号，因此收藏和清单按一个共享工作区保存。
- */
-export const favorites = sqliteTable('favorites', {
-  productId: text('product_id').primaryKey(),
-  updatedAt: text('updated_at').notNull(),
-})
+export const userFavorites = sqliteTable(
+  'user_favorites',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    productId: text('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.productId] }),
+  ],
+)
 
-export const cartItems = sqliteTable('cart_items', {
-  productId: text('product_id').primaryKey(),
-  quantity: integer('quantity').notNull(),
-  updatedAt: text('updated_at').notNull(),
-})
+export const userCartItems = sqliteTable(
+  'user_cart_items',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    productId: text('product_id')
+      .notNull()
+      .references(() => products.id, { onDelete: 'cascade' }),
+    quantity: integer('quantity').notNull(),
+    updatedAt: text('updated_at').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.productId] }),
+  ],
+)
 
-/**
- * 确认单保存生成当时的商品快照，之后商品信息变化也不会破坏历史记录。
- */
-export const orders = sqliteTable('orders', {
-  id: text('id').primaryKey(),
-  payloadJson: text('payload_json').notNull(),
-  createdAt: text('created_at').notNull(),
-})
+export const orders = sqliteTable(
+  'orders',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').references(() => users.id),
+    payloadJson: text('payload_json').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    index('orders_user_id_idx').on(table.userId),
+  ],
+)
 
 export const storeMeta = sqliteTable('store_meta', {
   key: text('key').primaryKey(),

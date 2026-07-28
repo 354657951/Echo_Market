@@ -2,12 +2,8 @@
   "version": "7",
   "dialect": "sqlite",
   "entries": [
-    {
-      "idx": 0,
-      "version": "6",
-      "when": 1785118928273,
-      "tag": "0000_brief_victor_mancha",
-      "breakpoints": true
-    }
+    { "idx": 0, "version": "6", "when": 1785118928273, "tag": "0000_brief_victor_mancha", "breakpoints": true },
+    { "idx": 1, "version": "6", "when": 1785123000000, "tag": "0001_multi_user_auth", "breakpoints": true },
+    { "idx": 2, "version": "6", "when": 1785205200000, "tag": "0002_product_detail_fields", "breakpoints": true }
   ]
 }

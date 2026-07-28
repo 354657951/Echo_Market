@@ -16,8 +16,9 @@ export function ProductCard({
   selection?: ProductSelection
 }) {
   // 商品卡片只负责展示与轻量操作，详情内容由独立路由承载。
-  const { favorites, toggleFavorite, addToCart } = useAppStore()
+  const { favorites, cart, toggleFavorite, addToCart } = useAppStore()
   const isFavorite = favorites.includes(product.id)
+  const cartQuantity = cart[product.id] || 0
   const [pendingAction, setPendingAction] = useState<'favorite' | 'cart' | ''>('')
 
   async function runAction(action: 'favorite' | 'cart') {
@@ -72,7 +73,11 @@ export function ProductCard({
             onClick={() => void runAction('cart')}
             type="button"
           >
-            {pendingAction === 'cart' ? '正在加入…' : '加入清单'}
+            {pendingAction === 'cart'
+              ? '正在加入…'
+              : cartQuantity > 0
+                ? `清单中 · ${cartQuantity}`
+                : '加入清单'}
           </button>
         </div>
       )}

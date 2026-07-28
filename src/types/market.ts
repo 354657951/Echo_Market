@@ -13,9 +13,16 @@ export interface Product {
   condition: string
   campus: string
   seller: string
+  isOwner?: boolean
   image: string
   tags: string[]
   postedAt: string
+  /** 已知划痕、功能异常等影响交易判断的信息。 */
+  flaws?: string
+  /** 随商品交付的线材、包装、说明书等。 */
+  accessories?: string
+  /** 议价、交接时间或验货方式等补充约定。 */
+  tradeNote?: string
 }
 
 export interface ListingDraft {
@@ -27,6 +34,9 @@ export interface ListingDraft {
   condition: string
   tags: string
   image: string
+  flaws: string
+  accessories: string
+  tradeNote: string
 }
 
 export interface OrderItem {

@@ -8,7 +8,7 @@ import type { Category } from '../types/market'
 type FavoriteSortMode = 'saved' | 'price-asc' | 'price-desc'
 
 export function FavoritesPage() {
-  // 收藏页只派生当前收藏视图，不复制或修改全局收藏状态。
+  // 收藏页只派生筛选和选择状态，不复制全局收藏数据。
   const { favoriteProducts, addFavoritesToCart, removeFavorites } = useAppStore()
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
@@ -27,7 +27,15 @@ export function FavoritesPage() {
     const normalized = query.trim().toLowerCase()
     const result = favoriteProducts.filter((product) => {
       const matchesCategory = category === '全部' || product.category === category
-      const searchable = [product.title, product.description, product.category, ...product.tags]
+      const searchable = [
+        product.title,
+        product.description,
+        product.category,
+        product.flaws,
+        product.accessories,
+        product.tradeNote,
+        ...product.tags,
+      ]
         .join(' ')
         .toLowerCase()
       return matchesCategory && (!normalized || searchable.includes(normalized))
@@ -98,7 +106,7 @@ export function FavoritesPage() {
       else await removeFavorites(selectedVisibleIds)
       exitSelectionMode()
     } catch {
-      // 失败原因由全局 Toast 呈现，保留勾选便于重试。
+      // 全局提示已经呈现失败原因，保留当前选择便于重试。
     } finally {
       setBatchPending('')
     }
@@ -185,7 +193,9 @@ export function FavoritesPage() {
                     >
                       {batchPending === 'remove' ? '正在取消…' : '取消收藏'}
                     </button>
-                    <button disabled={Boolean(batchPending)} onClick={exitSelectionMode} type="button">完成</button>
+                    <button disabled={Boolean(batchPending)} onClick={exitSelectionMode} type="button">
+                      完成
+                    </button>
                   </div>
                 </>
               ) : (
@@ -218,7 +228,9 @@ export function FavoritesPage() {
             ) : (
               <div className="empty-state">
                 <p>收藏中没有符合条件的物品。</p>
-                <button onClick={() => setParams({}, { replace: true })} type="button">查看全部收藏</button>
+                <button onClick={() => setParams({}, { replace: true })} type="button">
+                  查看全部收藏
+                </button>
               </div>
             )}
           </>

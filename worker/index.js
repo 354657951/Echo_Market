@@ -1,119 +1,99 @@
-import { handleStoreApi, serveMedia } from './store.js'
+import {
+  ACCESS_TOKEN_TTL_SECONDS,
+  REFRESH_TOKEN_TTL_SECONDS,
+  createRefreshToken,
+  hashPassword,
+  hashRefreshSecret,
+  normalizeUsername,
+  parseRefreshToken,
+  safeEqual,
+  signAccessToken,
+  validatePassword,
+  validateSessionSecret,
+  validateUsername,
+  verifyAccessToken,
+  verifyPassword,
+} from '../auth/core.js'
+import {
+  createAiRequestBody,
+  createListingPrompt,
+  normalizeAiListing,
+  validateAiImage,
+} from '../shared/ai-listing.js'
+import {
+  createRefreshSession,
+  createUser,
+  deleteRefreshSession,
+  ensureAuthStore,
+  ensureLegacyUser,
+  findUserByNormalized,
+  getRefreshSession,
+  getSessionUser,
+  rotateRefreshSession,
+} from './auth-store.js'
+import { handleStoreApi, serveMedia } from './store-multi.js'
 
-function json(data, status = 200) {
-  // 所有 API 统一返回 UTF-8 JSON，方便前端集中处理。
+const accessCookieName = 'echo_market_access'
+const refreshCookieName = 'echo_market_refresh'
+const defaultAiApiUrl = 'https://api.siliconflow.cn/v1/chat/completions'
+
+function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/json; charset=utf-8',
+      ...headers,
+    },
   })
 }
 
-const sessionCookieName = 'echo_market_session'
-const textEncoder = new TextEncoder()
-const textDecoder = new TextDecoder()
-const defaultAiApiUrl = 'https://api.siliconflow.cn/v1/chat/completions'
-
-function appCredentials(env) {
-  // 生产账号、密码和签名密钥均优先读取 Sites 环境变量。
-  return {
-    username: env.APP_USERNAME || 'campus',
-    password: env.APP_PASSWORD || 'Echo@2026',
-    secret: env.APP_SESSION_SECRET || 'echo-market-demo-session-secret-2026',
-  }
-}
-
-function toBase64Url(bytes) {
-  return btoa(String.fromCharCode(...bytes))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/g, '')
-}
-
-function fromBase64Url(value) {
-  const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
-  return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
-}
-
-function safeEqual(left, right) {
-  // 逐字符比较，避免普通字符串比较过早退出造成的时序差异。
-  if (left.length !== right.length) return false
-  let result = 0
-  for (let index = 0; index < left.length; index += 1) {
-    result |= left.charCodeAt(index) ^ right.charCodeAt(index)
-  }
-  return result === 0
-}
-
-async function signSession(value, secret) {
-  // 使用 HMAC-SHA256 签名会话，Worker 无需保存服务端会话表。
-  const key = await crypto.subtle.importKey(
-    'raw',
-    textEncoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  )
-  const signature = await crypto.subtle.sign('HMAC', key, textEncoder.encode(value))
-  return toBase64Url(new Uint8Array(signature))
-}
-
 function readCookie(request, name) {
-  const cookieHeader = request.headers.get('Cookie') || ''
   const prefix = `${name}=`
-  const entry = cookieHeader.split(';').map((part) => part.trim()).find((part) => part.startsWith(prefix))
+  const entry = (request.headers.get('Cookie') || '')
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
   return entry ? decodeURIComponent(entry.slice(prefix.length)) : ''
 }
 
-async function createSession(username, env) {
-  const expiresAt = Date.now() + 12 * 60 * 60 * 1000
-  const encodedUser = toBase64Url(textEncoder.encode(username))
-  const payload = `${encodedUser}.${expiresAt}`
-  const signature = await signSession(payload, appCredentials(env).secret)
-  return `${payload}.${signature}`
+function cookie(name, value, maxAge, path = '/') {
+  return `${name}=${encodeURIComponent(value)}; Path=${path}; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`
 }
 
-async function authenticatedUser(request, env) {
-  // 校验签名与过期时间后才返回用户名。
-  const token = readCookie(request, sessionCookieName)
-  const [encodedUser, expiresAt, signature, ...rest] = token.split('.')
-  if (!encodedUser || !expiresAt || !signature || rest.length > 0) return null
-  if (!Number.isFinite(Number(expiresAt)) || Number(expiresAt) <= Date.now()) return null
-  const expected = await signSession(`${encodedUser}.${expiresAt}`, appCredentials(env).secret)
-  if (!safeEqual(signature, expected)) return null
-
-  try {
-    return textDecoder.decode(fromBase64Url(encodedUser))
-  } catch {
-    return null
-  }
+function authHeaders(accessToken, refreshToken) {
+  const headers = new Headers({
+    'Cache-Control': 'no-store',
+    'Content-Type': 'application/json; charset=utf-8',
+  })
+  headers.append(
+    'Set-Cookie',
+    cookie(accessCookieName, accessToken, ACCESS_TOKEN_TTL_SECONDS),
+  )
+  headers.append(
+    'Set-Cookie',
+    cookie(refreshCookieName, refreshToken, REFRESH_TOKEN_TTL_SECONDS, '/api/auth'),
+  )
+  return headers
 }
 
-function sessionCookie(token, maxAge) {
-  return `${sessionCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAge}`
+function clearAuthHeaders() {
+  const headers = new Headers({
+    'Cache-Control': 'no-store',
+    'Content-Type': 'application/json; charset=utf-8',
+  })
+  headers.append('Set-Cookie', cookie(accessCookieName, '', 0))
+  headers.append('Set-Cookie', cookie(refreshCookieName, '', 0, '/api/auth'))
+  return headers
 }
 
-function createAiRequestBody(apiUrl, model, prompt) {
-  // SiliconFlow 走 Chat Completions；其他兼容服务仍可使用 input 请求。
-  if (apiUrl.includes('/chat/completions')) {
-    return {
-      model,
-      messages: [
-        {
-          role: 'system',
-          content: '你是校园二手交易平台的商品编辑。请严格返回一个 JSON 对象，不要输出 Markdown。',
-        },
-        { role: 'user', content: prompt },
-      ],
-      stream: false,
-      temperature: 0.2,
-      max_tokens: 800,
-      enable_thinking: false,
-      response_format: { type: 'json_object' },
-    }
-  }
+const sessionSecret = (env) => validateSessionSecret(env.APP_SESSION_SECRET)
+const publicUser = (user) => ({ id: user.id, username: user.username })
 
-  return { model, input: prompt }
+function sameOrigin(request) {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return true
+  const origin = request.headers.get('Origin')
+  return !origin || origin === new URL(request.url).origin
 }
 
 function upstreamErrorMessage(payload) {
@@ -121,34 +101,172 @@ function upstreamErrorMessage(payload) {
   return payload?.error?.message || payload?.message || 'AI 服务暂时不可用。'
 }
 
-async function login(request, env) {
-  // 登录成功后下发 HttpOnly、Secure、SameSite=Lax 的签名 Cookie。
-  let body
-  try {
-    body = await request.json()
-  } catch {
-    return json({ message: '请输入账号和密码。' }, 400)
-  }
-
-  const username = typeof body.username === 'string' ? body.username.trim() : ''
-  const password = typeof body.password === 'string' ? body.password : ''
-  const credentials = appCredentials(env)
-
-  if (!safeEqual(username, credentials.username) || !safeEqual(password, credentials.password)) {
-    return json({ message: '账号或密码不正确。' }, 401)
-  }
-
-  const token = await createSession(username, env)
-  return new Response(JSON.stringify({ authenticated: true, user: username }), {
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Set-Cookie': sessionCookie(token, 12 * 60 * 60),
-    },
+async function issueSession(env, user) {
+  const refresh = createRefreshToken()
+  const stamp = new Date().toISOString()
+  await createRefreshSession(env, {
+    id: refresh.sessionId,
+    userId: user.id,
+    tokenHash: await hashRefreshSecret(refresh.secret),
+    expiresAt: Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000,
+    createdAt: stamp,
+    lastUsedAt: stamp,
   })
+  const accessToken = await signAccessToken(
+    publicUser(user),
+    refresh.sessionId,
+    sessionSecret(env),
+  )
+  return {
+    body: {
+      authenticated: true,
+      user: publicUser(user),
+      accessExpiresAt: Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000,
+    },
+    headers: authHeaders(accessToken, refresh.token),
+  }
+}
+
+async function authenticatedUser(request, env) {
+  try {
+    const verified = await verifyAccessToken(
+      readCookie(request, accessCookieName),
+      sessionSecret(env),
+    )
+    const user = await getSessionUser(env, verified.sessionId)
+    return user?.id === verified.user.id ? user : null
+  } catch {
+    return null
+  }
+}
+
+async function register(request, env) {
+  try {
+    sessionSecret(env)
+    await ensureAuthStore(env)
+    if (env.APP_USERNAME && env.APP_PASSWORD) await ensureLegacyUser(env)
+    if (!env.APP_INVITE_CODE) {
+      return json({ message: '注册邀请码尚未配置。' }, 503)
+    }
+
+    const body = await request.json()
+    if (!safeEqual(body.inviteCode, env.APP_INVITE_CODE)) {
+      return json({ message: '邀请码不正确。' }, 403)
+    }
+    const { username, normalized } = validateUsername(body.username)
+    const passwordHash = await hashPassword(validatePassword(body.password))
+    const user = await createUser(env, { username, normalized, passwordHash })
+    if (!user) return json({ message: '该用户名已被使用。' }, 409)
+
+    const result = await issueSession(env, user)
+    return new Response(JSON.stringify(result.body), {
+      status: 201,
+      headers: result.headers,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '注册失败。'
+    const status = message.includes('APP_') || message.includes('D1') ? 503 : 400
+    return json({ message }, status)
+  }
+}
+
+async function login(request, env) {
+  try {
+    sessionSecret(env)
+    await ensureAuthStore(env)
+    const body = await request.json()
+    const { normalized } = normalizeUsername(body.username)
+    if (
+      env.APP_USERNAME
+      && normalized === normalizeUsername(env.APP_USERNAME).normalized
+    ) {
+      await ensureLegacyUser(env)
+    }
+    const user = await findUserByNormalized(env, normalized)
+    if (!user || !(await verifyPassword(body.password, user.passwordHash))) {
+      return json({ message: '账号或密码不正确。' }, 401)
+    }
+    const result = await issueSession(env, user)
+    return new Response(JSON.stringify(result.body), { headers: result.headers })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    const configurationError = message.includes('APP_') || message.includes('D1')
+    return json(
+      { message: configurationError ? message : '账号或密码不正确。' },
+      configurationError ? 503 : 401,
+    )
+  }
+}
+
+async function refresh(request, env) {
+  const parsed = parseRefreshToken(readCookie(request, refreshCookieName))
+  if (!parsed) {
+    return new Response(JSON.stringify({ message: '刷新会话无效。' }), {
+      status: 401,
+      headers: clearAuthHeaders(),
+    })
+  }
+
+  try {
+    const stored = await getRefreshSession(env, parsed.sessionId)
+    if (!stored || Number(stored.expiresAt) <= Date.now()) {
+      await deleteRefreshSession(env, parsed.sessionId)
+      return new Response(JSON.stringify({ message: '刷新会话已过期。' }), {
+        status: 401,
+        headers: clearAuthHeaders(),
+      })
+    }
+
+    const previousHash = await hashRefreshSecret(parsed.secret)
+    if (!safeEqual(previousHash, stored.tokenHash)) {
+      await deleteRefreshSession(env, parsed.sessionId)
+      return new Response(JSON.stringify({ message: '刷新会话无效。' }), {
+        status: 401,
+        headers: clearAuthHeaders(),
+      })
+    }
+
+    const user = await getSessionUser(env, parsed.sessionId)
+    if (!user) throw new Error('用户不存在。')
+    const next = createRefreshToken(parsed.sessionId)
+    const rotated = await rotateRefreshSession(
+      env,
+      parsed.sessionId,
+      previousHash,
+      await hashRefreshSecret(next.secret),
+    )
+    if (!rotated) throw new Error('刷新会话已失效。')
+    const accessToken = await signAccessToken(
+      user,
+      parsed.sessionId,
+      sessionSecret(env),
+    )
+    return new Response(
+      JSON.stringify({
+        authenticated: true,
+        user,
+        accessExpiresAt: Date.now() + ACCESS_TOKEN_TTL_SECONDS * 1000,
+      }),
+      { headers: authHeaders(accessToken, next.token) },
+    )
+  } catch {
+    return new Response(JSON.stringify({ message: '刷新会话无效。' }), {
+      status: 401,
+      headers: clearAuthHeaders(),
+    })
+  }
+}
+
+async function logout(request, env) {
+  const parsed = parseRefreshToken(readCookie(request, refreshCookieName))
+  if (parsed) await deleteRefreshSession(env, parsed.sessionId)
+  return new Response(
+    JSON.stringify({ authenticated: false, user: null }),
+    { headers: clearAuthHeaders() },
+  )
 }
 
 async function polishListing(request, env) {
-  // 未配置密钥时保留人工发布流程，并向页面返回明确状态。
   if (!env.AI_API_KEY || !env.AI_MODEL) {
     return json(
       {
@@ -159,28 +277,31 @@ async function polishListing(request, env) {
     )
   }
 
-  const body = await request.json()
-  const rawDescription = typeof body.rawDescription === 'string' ? body.rawDescription.trim() : ''
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return json({ message: '请求内容无法解析，请重新选择商品照片。' }, 400)
+  }
 
+  const rawDescription =
+    typeof body.rawDescription === 'string' ? body.rawDescription.trim() : ''
+  const imageValidation = validateAiImage(body.image)
+  if (!imageValidation.ok) {
+    return json({ message: imageValidation.message }, 400)
+  }
   if (rawDescription.length < 8) {
     return json({ message: '请至少输入 8 个字的物品信息。' }, 400)
   }
 
-  const prompt = [
-    // 约束输出字段和可选分类，降低前端解析失败概率。
-    '你是校园二手交易平台的商品编辑。',
-    '请把用户提供的信息整理为可信、克制、无夸张承诺的商品资料。',
-    '只返回合法 JSON，不要使用 Markdown。',
-    '字段必须为 title、category、tags、description、priceSuggestion、safetyNote。',
-    'category 只能是 数码、学习、生活、运动、影音 之一。',
-    'tags 必须是 2 到 4 个简短中文字符串组成的数组。',
-    `原始描述：${rawDescription}`,
-    `成色：${body.condition || '未说明'}`,
-    `期望价格：${body.expectedPrice || '未说明'}`,
-  ].join('\n')
+  const prompt = createListingPrompt({
+    rawDescription,
+    condition: body.condition,
+    expectedPrice: body.expectedPrice,
+  })
 
   try {
-    // 真实密钥只存在于 Worker 运行环境，不进入静态资源。
+    // 商品图片和文字都由 Worker 转发，浏览器永远接触不到 AI 密钥。
     const apiUrl = env.AI_API_URL || defaultAiApiUrl
     const upstream = await fetch(apiUrl, {
       method: 'POST',
@@ -188,25 +309,40 @@ async function polishListing(request, env) {
         Authorization: `Bearer ${env.AI_API_KEY}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(createAiRequestBody(apiUrl, env.AI_MODEL, prompt)),
+      body: JSON.stringify(
+        createAiRequestBody(
+          apiUrl,
+          env.AI_MODEL,
+          prompt,
+          imageValidation.image,
+        ),
+      ),
     })
     const payload = await upstream.json()
-
     if (!upstream.ok) {
       return json({ message: upstreamErrorMessage(payload) }, 502)
     }
 
     const text =
-      payload.output_text ||
-      payload.choices?.[0]?.message?.content ||
-      payload.output?.flatMap((item) => item.content || []).find((item) => item.type === 'output_text')?.text
-
+      payload.output_text
+      || payload.choices?.[0]?.message?.content
+      || payload.output
+        ?.flatMap((item) => item.content || [])
+        .find((item) => item.type === 'output_text')?.text
     if (typeof text !== 'string') {
       return json({ message: 'AI 返回内容无法解析。' }, 502)
     }
 
     const cleaned = text.replace(/^```json\s*/i, '').replace(/```$/i, '').trim()
-    return json({ configured: true, listing: JSON.parse(cleaned) })
+    const listing = normalizeAiListing(
+      JSON.parse(cleaned),
+      {
+        rawDescription,
+        condition: body.condition,
+        expectedPrice: body.expectedPrice,
+      },
+    )
+    return json({ configured: true, listing })
   } catch {
     return json({ message: '连接 AI 服务失败，请检查接口地址与网络。' }, 502)
   }
@@ -214,77 +350,75 @@ async function polishListing(request, env) {
 
 export default {
   async fetch(request, env) {
-    // API 路由优先处理，其余请求交给静态资源服务。
     const url = new URL(request.url)
+    if (url.pathname.startsWith('/api/') && !sameOrigin(request)) {
+      return json({ message: '请求来源校验失败。' }, 403)
+    }
 
     if (url.pathname === '/api/health') {
       return json({
         ok: true,
+        authConfigured: Boolean(
+          env.DB && env.APP_SESSION_SECRET && env.APP_INVITE_CODE,
+        ),
         aiConfigured: Boolean(env.AI_API_KEY && env.AI_MODEL),
-        aiProvider: (env.AI_API_URL || defaultAiApiUrl).includes('siliconflow.cn')
-          ? 'siliconflow'
-          : 'compatible',
-        sharedStoreConfigured: Boolean(env.DB || env.STORE_BLOB_URL),
-        mediaStoreConfigured: Boolean(env.MEDIA || env.STORE_BLOB_URL),
-        storageMode: env.DB ? 'd1' : env.STORE_BLOB_URL ? 'document-fallback' : 'unconfigured',
-        mediaMode: env.MEDIA ? 'r2' : env.STORE_BLOB_URL ? 'embedded-fallback' : 'unconfigured',
+        sharedStoreConfigured: Boolean(env.DB),
+        mediaStoreConfigured: Boolean(env.MEDIA),
+        storageMode: env.DB ? 'd1' : 'unconfigured',
+        mediaMode: env.MEDIA ? 'r2' : 'unconfigured',
       })
     }
-
+    if (url.pathname === '/api/auth/register' && request.method === 'POST') {
+      return register(request, env)
+    }
     if (url.pathname === '/api/auth/login' && request.method === 'POST') {
       return login(request, env)
     }
-
-    if (url.pathname === '/api/auth/session') {
+    if (url.pathname === '/api/auth/refresh' && request.method === 'POST') {
+      return refresh(request, env)
+    }
+    if (url.pathname === '/api/auth/session' && request.method === 'GET') {
       const user = await authenticatedUser(request, env)
       return json({ authenticated: Boolean(user), user })
     }
-
     if (url.pathname === '/api/auth/logout' && request.method === 'POST') {
-      return new Response(JSON.stringify({ authenticated: false }), {
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Set-Cookie': sessionCookie('', 0),
-        },
-      })
+      return logout(request, env)
     }
 
-    if (url.pathname === '/api/ai-polish' && request.method === 'POST') {
-      if (!(await authenticatedUser(request, env))) {
-        return json({ message: '请先登录后再使用 AI 发布功能。' }, 401)
-      }
-      return polishListing(request, env)
-    }
-
-    if (url.pathname.startsWith('/api/media/')) {
-      if (!(await authenticatedUser(request, env))) {
-        return json({ message: '请先登录后再查看商品图片。' }, 401)
-      }
-      return serveMedia(request, env, url)
-    }
-
-    if (
-      url.pathname === '/api/store'
+    const protectedPath =
+      url.pathname === '/api/ai-polish'
+      || url.pathname.startsWith('/api/media/')
+      || url.pathname === '/api/store'
       || url.pathname === '/api/store/bootstrap'
       || url.pathname === '/api/products'
       || url.pathname.startsWith('/api/products/')
       || url.pathname === '/api/orders'
       || url.pathname.startsWith('/api/favorites/')
       || url.pathname.startsWith('/api/cart/')
-    ) {
+
+    if (protectedPath) {
       const user = await authenticatedUser(request, env)
-      if (!user) return json({ message: '请先登录后再操作共享数据。' }, 401)
-      const response = await handleStoreApi(request, env, user, url)
-      if (response) return response
+      if (!user) return json({ message: '登录已过期，请重新登录。' }, 401)
+      if (url.pathname === '/api/ai-polish' && request.method === 'POST') {
+        return polishListing(request, env)
+      }
+      if (url.pathname.startsWith('/api/media/')) {
+        return serveMedia(request, env, url)
+      }
+      const storeResponse = await handleStoreApi(request, env, user, url)
+      if (storeResponse) return storeResponse
     }
 
-    const assetResponse = await env.ASSETS.fetch(request)
-    const acceptsHtml = request.headers.get('Accept')?.includes('text/html')
-    // 单页应用的深层地址统一回退到 index.html，再由前端路由决定页面。
-    if (request.method === 'GET' && assetResponse.status === 404 && acceptsHtml) {
-      const indexRequest = new Request(new URL('/index.html', request.url), request)
-      return env.ASSETS.fetch(indexRequest)
+    const asset = await env.ASSETS.fetch(request)
+    if (
+      request.method === 'GET'
+      && asset.status === 404
+      && request.headers.get('Accept')?.includes('text/html')
+    ) {
+      return env.ASSETS.fetch(
+        new Request(new URL('/index.html', request.url), request),
+      )
     }
-    return assetResponse
+    return asset
   },
 }

@@ -4,3 +4,4 @@ dist
 *.local
 *.log
 .local-data
+docs/audit/

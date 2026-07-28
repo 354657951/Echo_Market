@@ -1,28 +1,58 @@
 import { useState, type FormEvent } from 'react'
+import { login, register, type AuthUser } from '../../api/authClient'
 import { HERO_VIDEO_URL } from '../../config/media'
 
-export function LoginScreen({ onSignedIn }: { onSignedIn: (username: string) => void }) {
+type Mode = 'login' | 'register'
+
+interface LoginScreenProps {
+  onSignedIn: (user: AuthUser) => void
+  sessionExpired?: boolean
+}
+
+export function LoginScreen({
+  onSignedIn,
+  sessionExpired = false,
+}: LoginScreenProps) {
+  const [mode, setMode] = useState<Mode>('login')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [message, setMessage] = useState('使用项目账号进入校园旧物循环站。')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
+  const [message, setMessage] = useState(
+    sessionExpired
+      ? '登录已过期，请重新登录。'
+      : '使用项目账号进入校园旧物循环站。',
+  )
   const [submitting, setSubmitting] = useState(false)
 
-  async function handleLogin(event: FormEvent<HTMLFormElement>) {
-    // 账号密码只发送到同源服务端，前端不保存明文密码。
+  function switchMode(nextMode: Mode) {
+    setMode(nextMode)
+    setConfirmPassword('')
+    setInviteCode('')
+    setMessage(
+      nextMode === 'login'
+        ? '使用已有账号登录。'
+        : '使用组内邀请码创建你的校园账号。',
+    )
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (mode === 'register' && password !== confirmPassword) {
+      setMessage('两次输入的密码不一致。')
+      return
+    }
+
     setSubmitting(true)
-    setMessage('正在验证账号…')
+    setMessage(mode === 'login' ? '正在验证账号…' : '正在创建账号…')
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      })
-      const payload = await response.json()
-      if (!response.ok) throw new Error(payload.message || '登录失败，请重试。')
-      onSignedIn(String(payload.user))
+      const user =
+        mode === 'login'
+          ? await login(username, password)
+          : await register(username, password, inviteCode)
+      onSignedIn(user)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '登录失败，请重试。')
+      setMessage(error instanceof Error ? error.message : '认证失败，请重试。')
     } finally {
       setSubmitting(false)
     }
@@ -30,40 +60,116 @@ export function LoginScreen({ onSignedIn }: { onSignedIn: (username: string) => 
 
   return (
     <main className="auth-shell">
-      <video aria-hidden="true" autoPlay className="auth-video" loop muted playsInline src={HERO_VIDEO_URL} />
+      <video
+        aria-hidden="true"
+        autoPlay
+        className="auth-video"
+        loop
+        muted
+        playsInline
+        src={HERO_VIDEO_URL}
+      />
       <div className="auth-brand">
         <strong>回声集</strong>
         <span>AI 校园旧物循环站</span>
       </div>
+
       <section className="liquid-glass auth-panel" aria-labelledby="login-title">
         <p className="auth-eyebrow">WELCOME BACK / 2026</p>
         <h1 id="login-title">让旧物继续流动。</h1>
-        <p className="auth-intro">登录后浏览、收藏和发布校园闲置物品。</p>
-        <form className="auth-form" onSubmit={handleLogin}>
-          <label htmlFor="login-username">账号</label>
+        <p className="auth-intro">
+          {mode === 'login'
+            ? '登录后浏览、收藏和发布校园闲置物品。'
+            : '创建独立账号，保留自己的收藏、清单和交易记录。'}
+        </p>
+
+        <div className="auth-mode-switch" role="group" aria-label="选择账号入口">
+          <button
+            aria-pressed={mode === 'login'}
+            className={mode === 'login' ? 'is-active' : ''}
+            onClick={() => switchMode('login')}
+            type="button"
+          >
+            登录
+          </button>
+          <button
+            aria-pressed={mode === 'register'}
+            className={mode === 'register' ? 'is-active' : ''}
+            onClick={() => switchMode('register')}
+            type="button"
+          >
+            注册
+          </button>
+        </div>
+
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <label htmlFor="login-username">用户名</label>
           <input
+            aria-describedby="auth-message"
             autoComplete="username"
             id="login-username"
+            maxLength={24}
+            minLength={3}
             onChange={(event) => setUsername(event.target.value)}
-            placeholder="请输入账号"
+            placeholder="3–24 个字符"
             required
             value={username}
           />
+
           <label htmlFor="login-password">密码</label>
           <input
-            autoComplete="current-password"
+            aria-describedby="auth-message"
+            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             id="login-password"
+            maxLength={128}
+            minLength={8}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="请输入密码"
+            placeholder="至少 8 个字符"
             required
             type="password"
             value={password}
           />
+
+          {mode === 'register' && (
+            <>
+              <label htmlFor="register-confirm">确认密码</label>
+              <input
+                aria-describedby="auth-message"
+                autoComplete="new-password"
+                id="register-confirm"
+                maxLength={128}
+                minLength={8}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                placeholder="再次输入密码"
+                required
+                type="password"
+                value={confirmPassword}
+              />
+
+              <label htmlFor="register-invite">组内邀请码</label>
+              <input
+                aria-describedby="auth-message"
+                autoComplete="off"
+                id="register-invite"
+                onChange={(event) => setInviteCode(event.target.value)}
+                placeholder="请输入老师或组长提供的邀请码"
+                required
+                value={inviteCode}
+              />
+            </>
+          )}
+
           <button disabled={submitting} type="submit">
-            {submitting ? '登录中…' : '登录进入'}
+            {submitting
+              ? '请稍候…'
+              : mode === 'login'
+                ? '登录进入'
+                : '注册并进入'}
           </button>
         </form>
-        <p className="auth-message" role="status">{message}</p>
+        <p aria-live="polite" className="auth-message" id="auth-message">
+          {message}
+        </p>
       </section>
       <p className="auth-footnote">记录 · 流转 · 再出发</p>
     </main>
@@ -73,7 +179,15 @@ export function LoginScreen({ onSignedIn }: { onSignedIn: (username: string) => 
 export function AuthChecking() {
   return (
     <main className="auth-shell auth-checking">
-      <video aria-hidden="true" autoPlay className="auth-video" loop muted playsInline src={HERO_VIDEO_URL} />
+      <video
+        aria-hidden="true"
+        autoPlay
+        className="auth-video"
+        loop
+        muted
+        playsInline
+        src={HERO_VIDEO_URL}
+      />
       <div className="liquid-glass auth-loader" role="status">
         <strong>回声集</strong>
         <span>正在确认登录状态</span>

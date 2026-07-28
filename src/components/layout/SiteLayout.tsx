@@ -74,7 +74,7 @@ export function SiteLayout({
           <NavLink aria-label={`交易清单 ${cartCount} 件`} className="counter-link" to="/cart">
             清单 <span>{cartCount}</span>
           </NavLink>
-          <NavLink className="account-link" to="/account">{currentUser}</NavLink>
+          <NavLink className="account-link" to="/account">{currentUser.username}</NavLink>
         </div>
       </header>
 

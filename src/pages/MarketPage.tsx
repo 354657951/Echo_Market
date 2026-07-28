@@ -23,7 +23,15 @@ export function MarketPage() {
     const normalized = query.trim().toLowerCase()
     const result = allProducts.filter((product) => {
       const matchesCategory = category === '全部' || product.category === category
-      const searchable = [product.title, product.description, product.category, ...product.tags]
+      const searchable = [
+        product.title,
+        product.description,
+        product.category,
+        product.flaws,
+        product.accessories,
+        product.tradeNote,
+        ...product.tags,
+      ]
         .join(' ')
         .toLowerCase()
       return matchesCategory && (!normalized || searchable.includes(normalized))

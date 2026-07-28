@@ -1,9 +1,14 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
-import { IS_GITHUB_PAGES_DEMO, withBase } from '../config/runtime'
+import { authFetch } from '../api/authClient'
+import { IS_GITHUB_PAGES_DEMO } from '../config/runtime'
 import { categories } from '../data/products'
 import { useNavigate } from '../router/AppRouter'
 import { useAppStore } from '../state/AppStore'
 import type { ListingDraft } from '../types/market'
+
+const supportedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
+const maxOriginalImageBytes = 2.5 * 1024 * 1024
+const maxProcessedImageEdge = 1200
 
 const emptyDraft: ListingDraft = {
   rawDescription: '',
@@ -14,6 +19,48 @@ const emptyDraft: ListingDraft = {
   condition: '九成新',
   tags: '',
   image: '',
+  flaws: '',
+  accessories: '',
+  tradeNote: '',
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(new Error('无法读取这张图片，请重新选择。'))
+    reader.readAsDataURL(file)
+  })
+}
+
+function loadImage(source: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => reject(new Error('图片内容无法识别，请换一张商品照片。'))
+    image.src = source
+  })
+}
+
+async function prepareProductImage(file: File) {
+  // 统一缩放并转成 JPEG，降低读图请求体、视觉 token 与共享图片的体积。
+  const source = await readFileAsDataUrl(file)
+  const image = await loadImage(source)
+  const scale = Math.min(
+    1,
+    maxProcessedImageEdge / Math.max(image.naturalWidth, image.naturalHeight),
+  )
+  const width = Math.max(1, Math.round(image.naturalWidth * scale))
+  const height = Math.max(1, Math.round(image.naturalHeight * scale))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('浏览器暂时无法处理图片，请重新选择。')
+  context.fillStyle = '#f7f5ef'
+  context.fillRect(0, 0, width, height)
+  context.drawImage(image, 0, 0, width, height)
+  return canvas.toDataURL('image/jpeg', 0.84)
 }
 
 export function PublishPage() {
@@ -21,11 +68,12 @@ export function PublishPage() {
   const { publishProduct } = useAppStore()
   const [draft, setDraft] = useState<ListingDraft>(emptyDraft)
   const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
+  const [imageLoading, setImageLoading] = useState(false)
   const [publishing, setPublishing] = useState(false)
   const [aiMessage, setAiMessage] = useState(
     IS_GITHUB_PAGES_DEMO
       ? '当前为 GitHub Pages 静态演示版，可手动填写并发布；AI 整理请使用完整在线版。'
-      : '输入物品现状，AI 将整理标题、分类、标签和可信描述。',
+      : '先上传商品照片并说明真实情况，AI 会结合图片整理标题、分类、标签和可信描述。',
   )
 
   // 使用泛型更新单个字段，保证字段名和值类型一致。
@@ -33,29 +81,50 @@ export function PublishPage() {
     setDraft((current) => ({ ...current, [key]: value }))
   }
 
-  function handleImage(event: ChangeEvent<HTMLInputElement>) {
-    // 图片仅在浏览器中转为预览，不上传到第三方服务；大小限制为 2.5 MB。
+  async function handleImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
-    if (file.size > 2.5 * 1024 * 1024) {
+    if (!supportedImageTypes.has(file.type)) {
+      event.target.value = ''
+      setAiStatus('error')
+      setAiMessage('请上传 JPG、PNG 或 WebP 格式的商品照片。')
+      return
+    }
+    if (file.size > maxOriginalImageBytes) {
+      event.target.value = ''
       setAiStatus('error')
       setAiMessage('图片请控制在 2.5 MB 以内。')
       return
     }
-    const reader = new FileReader()
-    reader.onload = () => {
-      updateDraft('image', String(reader.result))
+
+    setImageLoading(true)
+    setAiStatus('loading')
+    setAiMessage('正在处理商品照片…')
+    try {
+      const processedImage = await prepareProductImage(file)
+      updateDraft('image', processedImage)
       setAiStatus('success')
-      setAiMessage('商品照片已载入，发布后会同步给其他组员。')
+      setAiMessage('商品照片已载入。补充真实情况后，可以让 AI 读图并整理信息。')
+    } catch (error) {
+      event.target.value = ''
+      updateDraft('image', '')
+      setAiStatus('error')
+      setAiMessage(error instanceof Error ? error.message : '图片处理失败，请重新选择。')
+    } finally {
+      setImageLoading(false)
     }
-    reader.readAsDataURL(file)
   }
 
   async function polishWithAi() {
-    // AI 只整理表达，用户仍可修改每个字段并确认真实性。
+    // AI 同时读取图片与文字，但用户仍需确认成色、功能和隐藏瑕疵。
     if (IS_GITHUB_PAGES_DEMO) {
       setAiStatus('error')
       setAiMessage('静态演示版不连接服务端 AI。你仍可手动填写下方字段并完成发布。')
+      return
+    }
+    if (!draft.image) {
+      setAiStatus('error')
+      setAiMessage('请先上传一张清晰的商品照片，AI 需要结合图片整理信息。')
       return
     }
     if (draft.rawDescription.trim().length < 8) {
@@ -64,15 +133,16 @@ export function PublishPage() {
       return
     }
     setAiStatus('loading')
-    setAiMessage('正在整理商品信息…')
+    setAiMessage('AI 正在读取照片并整理商品信息…')
     try {
-      const response = await fetch('/api/ai-polish', {
+      const response = await authFetch('/api/ai-polish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rawDescription: draft.rawDescription,
           condition: draft.condition,
           expectedPrice: draft.price,
+          image: draft.image,
         }),
       })
       const payload = await response.json()
@@ -81,13 +151,24 @@ export function PublishPage() {
       setDraft((current) => ({
         ...current,
         title: String(listing.title || ''),
-        category: (listing.category || '生活') as ListingDraft['category'],
+        category: categories.includes(listing.category) && listing.category !== '全部'
+          ? listing.category as ListingDraft['category']
+          : '生活',
         description: String(listing.description || ''),
-        price: String(listing.priceSuggestion || current.price || ''),
+        price: Number(listing.priceSuggestion) > 0
+          ? String(listing.priceSuggestion)
+          : current.price,
         tags: Array.isArray(listing.tags) ? listing.tags.join(' · ') : '',
       }))
       setAiStatus('success')
-      setAiMessage(String(listing.safetyNote || '已完成整理，请确认后发布。'))
+      const uncertainties = Array.isArray(listing.uncertainties)
+        ? listing.uncertainties.filter(Boolean).slice(0, 3)
+        : []
+      setAiMessage([
+        listing.imageSummary ? `已识别：${String(listing.imageSummary)}` : '',
+        listing.safetyNote ? String(listing.safetyNote) : '已完成整理，请确认后发布。',
+        uncertainties.length > 0 ? `仍需确认：${uncertainties.join('、')}。` : '',
+      ].filter(Boolean).join(' '))
     } catch (error) {
       setAiStatus('error')
       setAiMessage(error instanceof Error ? error.message : 'AI 服务暂时不可用。')
@@ -98,6 +179,11 @@ export function PublishPage() {
     // 发布前再次校验关键字段，防止绕过表单约束写入无效数据。
     event.preventDefault()
     const price = Number(draft.price)
+    if (!draft.image) {
+      setAiStatus('error')
+      setAiMessage('请先上传一张清晰的商品照片再发布。')
+      return
+    }
     if (!draft.title.trim() || !draft.description.trim() || !Number.isFinite(price) || price <= 0) {
       setAiStatus('error')
       setAiMessage('请补全商品标题、描述和有效价格。')
@@ -122,17 +208,28 @@ export function PublishPage() {
       <section className="route-hero compact light">
         <p className="eyebrow">AI LISTING STUDIO</p>
         <h1>发布一件闲置</h1>
-        <p>AI 负责整理表达，你负责确认每一条事实。</p>
+        <p>AI 结合照片与说明整理信息，你负责确认瑕疵、配件和交接约定。</p>
       </section>
 
       <section className="route-section publish-layout">
         <form className="publish-form" onSubmit={submitListing}>
+          <div className="field full">
+            <label htmlFor="listing-image">商品照片</label>
+            <input
+              accept="image/jpeg,image/png,image/webp"
+              id="listing-image"
+              onChange={handleImage}
+              required
+              type="file"
+            />
+          </div>
           <div className="field full">
             <label htmlFor="raw-description">物品的真实情况</label>
             <textarea
               id="raw-description"
               onChange={(event) => updateDraft('rawDescription', event.target.value)}
               placeholder="例如：用了一个学期的无线键盘，功能正常，宿舍自提，希望 200 左右出…"
+              required
               rows={5}
               value={draft.rawDescription}
             />
@@ -160,15 +257,21 @@ export function PublishPage() {
           </div>
           <button
             className="ai-button full"
-            disabled={aiStatus === 'loading' || IS_GITHUB_PAGES_DEMO}
+            disabled={aiStatus === 'loading' || imageLoading || IS_GITHUB_PAGES_DEMO}
             onClick={polishWithAi}
             type="button"
           >
             {IS_GITHUB_PAGES_DEMO
               ? 'AI 整理仅在完整在线版可用'
-              : aiStatus === 'loading' ? 'AI 正在整理…' : '用 AI 整理商品信息'}
+              : aiStatus === 'loading' ? 'AI 正在读图并整理…' : '用 AI 读图并整理商品信息'}
           </button>
-          <div className="status-row full" data-status={aiStatus}>
+          <div
+            aria-live="polite"
+            className="status-row full"
+            data-status={aiStatus}
+            id="ai-status"
+            role="status"
+          >
             <span>{aiStatus === 'success' ? '已完成' : aiStatus === 'error' ? '需要处理' : '准备就绪'}</span>
             <p>{aiMessage}</p>
           </div>
@@ -211,12 +314,41 @@ export function PublishPage() {
             />
           </div>
           <div className="field full">
-            <label htmlFor="listing-image">商品照片</label>
-            <input accept="image/*" id="listing-image" onChange={handleImage} type="file" />
+            <label htmlFor="listing-flaws">已知瑕疵（选填）</label>
+            <textarea
+              id="listing-flaws"
+              maxLength={500}
+              onChange={(event) => updateDraft('flaws', event.target.value)}
+              placeholder="例如：外壳右下角有轻微划痕，功能和按键均正常"
+              rows={3}
+              value={draft.flaws}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="listing-accessories">随附物品（选填）</label>
+            <input
+              id="listing-accessories"
+              maxLength={300}
+              onChange={(event) =>
+                updateDraft('accessories', event.target.value)}
+              placeholder="充电线、包装盒、说明书"
+              value={draft.accessories}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="listing-trade-note">交易备注（选填）</label>
+            <input
+              id="listing-trade-note"
+              maxLength={500}
+              onChange={(event) =>
+                updateDraft('tradeNote', event.target.value)}
+              placeholder="自提时间、验货或议价说明"
+              value={draft.tradeNote}
+            />
           </div>
           <label className="truth-check full">
             <input required type="checkbox" />
-            <span>我确认标题、价格、成色和瑕疵描述均与实物一致。</span>
+            <span>我确认标题、价格、成色、瑕疵和配件信息均与实物一致。</span>
           </label>
           <button className="publish-button full" disabled={publishing} type="submit">
             {publishing ? '正在发布并同步…' : '确认信息并发布'}
@@ -226,7 +358,14 @@ export function PublishPage() {
         <aside className="listing-preview">
           <p className="preview-label">LIVE PREVIEW</p>
           <div className="preview-image">
-            <img alt="待发布商品预览" src={draft.image || withBase('/products/lamp.jpg')} />
+            {draft.image
+              ? <img alt="待发布商品预览" src={draft.image} />
+              : (
+                <div className="preview-empty">
+                  <span>商品照片</span>
+                  <p>上传后在这里核对公开效果</p>
+                </div>
+              )}
           </div>
           <div className="preview-content">
             <p>{draft.category} · {draft.condition}</p>
@@ -240,6 +379,19 @@ export function PublishPage() {
                 .slice(0, 4)
                 .map((tag) => <span key={tag}>{tag}</span>)}
             </div>
+            {(draft.flaws || draft.accessories || draft.tradeNote) && (
+              <dl className="preview-detail-list">
+                {draft.flaws && (
+                  <div><dt>已知瑕疵</dt><dd>{draft.flaws}</dd></div>
+                )}
+                {draft.accessories && (
+                  <div><dt>随附物品</dt><dd>{draft.accessories}</dd></div>
+                )}
+                {draft.tradeNote && (
+                  <div><dt>交易备注</dt><dd>{draft.tradeNote}</dd></div>
+                )}
+              </dl>
+            )}
           </div>
         </aside>
       </section>

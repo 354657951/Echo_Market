@@ -1,0 +1,68 @@
+.auth-shell {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.auth-mode-switch {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+  margin: 0 0 1rem;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.5rem;
+  background: rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.auth-mode-switch button {
+  min-height: 2.4rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 180ms ease, color 180ms ease, transform 180ms ease;
+}
+
+.auth-mode-switch button.is-active {
+  background: #fff;
+  color: #000;
+}
+
+.auth-mode-switch button:not(.is-active):hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.auth-mode-switch button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+@media (max-height: 850px) {
+  .auth-shell {
+    align-items: start;
+    padding-top: 5.5rem;
+  }
+
+  .auth-panel h1 {
+    font-size: 2.3rem;
+  }
+
+  .auth-intro {
+    margin-bottom: 1rem;
+  }
+
+  .auth-form input {
+    height: 2.8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-mode-switch button {
+    transition: none;
+  }
+}

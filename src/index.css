@@ -434,7 +434,49 @@ a {
 }
 
 .product-card {
+  position: relative;
   min-width: 0;
+}
+
+.product-card.is-selected .product-image-button {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+.product-selection-control {
+  position: absolute;
+  z-index: 2;
+  top: 0.7rem;
+  left: 0.7rem;
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(8, 8, 8, 0.86);
+  color: #fff;
+  padding: 0 0.75rem;
+  font-size: 0.7rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.product-selection-control input,
+.batch-select-all input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: #fff;
+}
+
+.product-selection-hint {
+  min-height: 2.1rem;
+  margin: 0;
+  padding-top: 0.75rem;
+  color: #777;
+  text-align: right;
+  font-size: 0.68rem;
 }
 
 .product-image-button {
@@ -2590,7 +2632,7 @@ footer > p {
   bottom: clamp(1rem, 3vw, 2rem);
   display: grid;
   width: min(390px, calc(100vw - 2rem));
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.75rem;
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -2625,13 +2667,81 @@ footer > p {
   line-height: 1.5;
 }
 
-.action-toast button {
+.action-toast-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.favorites-batch-toolbar {
+  display: flex;
+  min-height: 3.6rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: -0.75rem 0 2rem;
+  border-top: 1px solid #242424;
+  border-bottom: 1px solid #242424;
+  color: #777;
+  padding: 0.65rem 0;
+  font-size: 0.72rem;
+}
+
+.favorites-batch-toolbar.is-active {
+  color: #d3d3d3;
+}
+
+.favorites-batch-toolbar button {
+  min-height: 2.25rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 0.45rem;
+  background: #151515;
+  color: #ddd;
+  padding: 0 0.8rem;
+  font-size: 0.7rem;
+}
+
+.favorites-batch-toolbar button:hover:not(:disabled) {
+  border-color: #888;
+  color: #fff;
+}
+
+.batch-select-all {
+  display: inline-flex;
+  min-height: 2.25rem;
+  align-items: center;
+  gap: 0.55rem;
+  white-space: nowrap;
+}
+
+.batch-selected-count {
+  margin-right: auto;
+  white-space: nowrap;
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.batch-actions .batch-remove {
+  border-color: rgba(255, 142, 126, 0.45);
+  color: #ffb1a4;
+}
+
+.action-toast-actions button {
   border: 0;
   border-bottom: 1px solid #555;
   background: transparent;
   color: #999;
   padding: 0 0 0.15rem;
   font-size: 0.65rem;
+}
+
+.action-toast-actions .toast-undo {
+  border-bottom-color: #fff;
+  color: #fff;
 }
 
 @keyframes toast-enter {
@@ -2675,6 +2785,20 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  .favorites-batch-toolbar.is-active {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .batch-actions {
+    width: 100%;
+  }
+
+  .batch-actions button {
+    flex: 1;
+    min-width: 0;
+  }
+
   .sync-indicator {
     order: -1;
     width: 2rem;

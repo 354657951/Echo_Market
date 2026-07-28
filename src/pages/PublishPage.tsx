@@ -1,4 +1,5 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
+import { authFetch } from '../api/authClient'
 import { IS_GITHUB_PAGES_DEMO } from '../config/runtime'
 import { categories } from '../data/products'
 import { useNavigate } from '../router/AppRouter'
@@ -131,7 +132,7 @@ export function PublishPage() {
     setAiStatus('loading')
     setAiMessage('AI 正在读取照片并整理商品信息…')
     try {
-      const response = await fetch('/api/ai-polish', {
+      const response = await authFetch('/api/ai-polish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

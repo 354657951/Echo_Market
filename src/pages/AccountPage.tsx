@@ -24,7 +24,7 @@ export function AccountPage({ onLogout }: { onLogout: () => Promise<void> }) {
       <section className="account-hero">
         <div>
           <p className="eyebrow">MEMBER ARCHIVE</p>
-          <h1>{currentUser}</h1>
+          <h1>{currentUser.username}</h1>
           <p>欢迎回到你的校园循环档案。</p>
         </div>
         {IS_GITHUB_PAGES_DEMO ? (

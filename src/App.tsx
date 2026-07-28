@@ -1,4 +1,9 @@
 import { useEffect, useState } from 'react'
+import {
+  logout as logoutSession,
+  resolveInitialSession,
+  type AuthUser,
+} from './api/authClient'
 import { AuthChecking, LoginScreen } from './components/auth/AuthScreens'
 import { SiteLayout } from './components/layout/SiteLayout'
 import { IS_GITHUB_PAGES_DEMO } from './config/runtime'
@@ -17,7 +22,7 @@ import { AppStoreProvider } from './state/AppStore'
 type AuthState = 'checking' | 'signed-out' | 'signed-in'
 
 function RouteContent({ onLogout }: { onLogout: () => Promise<void> }) {
-  // 根据当前路径选择页面组件；未知地址统一进入 404 页面。
+  // 认证完成后再挂载业务页面，避免不同用户之间短暂复用上一份状态。
   const { pathname } = useLocation()
   let page
 
@@ -35,53 +40,63 @@ function RouteContent({ onLogout }: { onLogout: () => Promise<void> }) {
 }
 
 export default function App() {
+  const demoUser: AuthUser = { id: 'demo', username: '演示访客' }
   const [authState, setAuthState] = useState<AuthState>(
     IS_GITHUB_PAGES_DEMO ? 'signed-in' : 'checking',
   )
-  const [currentUser, setCurrentUser] = useState(
-    IS_GITHUB_PAGES_DEMO ? '演示访客' : '',
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(
+    IS_GITHUB_PAGES_DEMO ? demoUser : null,
   )
+  const [sessionExpired, setSessionExpired] = useState(false)
 
   useEffect(() => {
     if (IS_GITHUB_PAGES_DEMO) return
-    // 首次加载时向服务端确认 HttpOnly Cookie 中的登录状态。
-    const controller = new AbortController()
-    fetch('/api/auth/session', { signal: controller.signal })
-      .then(async (response) => {
-        const payload = await response.json()
-        if (payload.authenticated) {
-          setCurrentUser(String(payload.user))
-          setAuthState('signed-in')
-        } else {
-          setAuthState('signed-out')
-        }
+    let active = true
+
+    void resolveInitialSession()
+      .then((user) => {
+        if (!active) return
+        setCurrentUser(user)
+        setAuthState(user ? 'signed-in' : 'signed-out')
       })
-      .catch((error) => {
-        if (error instanceof Error && error.name === 'AbortError') return
-        setAuthState('signed-out')
+      .catch(() => {
+        if (active) setAuthState('signed-out')
       })
-    return () => controller.abort()
+
+    // 普通接口刷新会话失败时，统一回到登录页并给出明确提示。
+    const handleExpiredSession = () => {
+      setCurrentUser(null)
+      setSessionExpired(true)
+      setAuthState('signed-out')
+    }
+    window.addEventListener('echo-market-auth-expired', handleExpiredSession)
+    return () => {
+      active = false
+      window.removeEventListener('echo-market-auth-expired', handleExpiredSession)
+    }
   }, [])
 
   async function logout() {
     if (IS_GITHUB_PAGES_DEMO) return
-    // 服务端清除会话后再重置前端身份，避免页面残留登录状态。
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
+      await logoutSession()
     } finally {
-      setCurrentUser('')
+      setCurrentUser(null)
+      setSessionExpired(false)
       setAuthState('signed-out')
     }
   }
 
   if (authState === 'checking') return <AuthChecking />
-  if (authState === 'signed-out') {
+  if (authState === 'signed-out' || !currentUser) {
     return (
       <LoginScreen
-        onSignedIn={(username) => {
-          setCurrentUser(username)
+        onSignedIn={(user) => {
+          setCurrentUser(user)
+          setSessionExpired(false)
           setAuthState('signed-in')
         }}
+        sessionExpired={sessionExpired}
       />
     )
   }

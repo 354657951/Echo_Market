@@ -16,6 +16,7 @@ import {
   setSharedFavorite,
   type SharedStoreSnapshot,
 } from '../api/storeApi'
+import type { AuthUser } from '../api/authClient'
 import { IS_GITHUB_PAGES_DEMO, withBase } from '../config/runtime'
 import { products } from '../data/products'
 import type { ListingDraft, Order, Product } from '../types/market'
@@ -56,7 +57,7 @@ function hasLegacyData(snapshot: ReturnType<typeof readLegacySnapshot>) {
 }
 
 interface StoreValue {
-  currentUser: string
+  currentUser: AuthUser
   allProducts: Product[]
   userProducts: Product[]
   favorites: string[]
@@ -88,15 +89,21 @@ export function AppStoreProvider({
   currentUser,
 }: {
   children: ReactNode
-  currentUser: string
+  currentUser: AuthUser
 }) {
   const legacy = useMemo(readLegacySnapshot, [])
   const [allProducts, setAllProducts] = useState<Product[]>(
     IS_GITHUB_PAGES_DEMO ? [...legacy.userProducts, ...products] : products,
   )
-  const [cart, setCart] = useState<Record<string, number>>(legacy.cart)
-  const [favorites, setFavorites] = useState<string[]>(legacy.favorites)
-  const [orders, setOrders] = useState<Order[]>(legacy.orders)
+  const [cart, setCart] = useState<Record<string, number>>(
+    IS_GITHUB_PAGES_DEMO ? legacy.cart : {},
+  )
+  const [favorites, setFavorites] = useState<string[]>(
+    IS_GITHUB_PAGES_DEMO ? legacy.favorites : [],
+  )
+  const [orders, setOrders] = useState<Order[]>(
+    IS_GITHUB_PAGES_DEMO ? legacy.orders : [],
+  )
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(
     IS_GITHUB_PAGES_DEMO ? 'ready' : 'loading',
   )
@@ -107,7 +114,7 @@ export function AppStoreProvider({
   const [notice, setNotice] = useState<Notice | null>(null)
 
   const userProducts = useMemo(
-    () => allProducts.filter((product) => product.id.startsWith('user-')),
+    () => allProducts.filter((product) => product.isOwner),
     [allProducts],
   )
   const favoriteProducts = useMemo(
@@ -171,8 +178,12 @@ export function AppStoreProvider({
 
     async function initializeSharedStore() {
       try {
-        const migrationKey = 'echo-market-shared-import-v1'
-        const shouldImport = !localStorage.getItem(migrationKey) && hasLegacyData(legacy)
+        const migrationKey = `echo-market-shared-import-v2:${currentUser.id}`
+        // 旧版浏览器数据属于原共享管理员，不能被后来注册的账号认领。
+        const shouldImport =
+          currentUser.id === 'legacy-campus'
+          && !localStorage.getItem(migrationKey)
+          && hasLegacyData(legacy)
         const snapshot = shouldImport
           ? await importLegacyStore(legacy)
           : await fetchSharedStore()
@@ -206,7 +217,7 @@ export function AppStoreProvider({
     return () => {
       active = false
     }
-  }, [announce, applySnapshot, legacy])
+  }, [announce, applySnapshot, currentUser.id, legacy])
 
   useEffect(() => {
     if (IS_GITHUB_PAGES_DEMO) return
@@ -317,7 +328,8 @@ export function AppStoreProvider({
         price: Number(draft.price),
         condition: draft.condition,
         campus: '待与买家协商',
-        seller: currentUser,
+        seller: currentUser.username,
+        isOwner: true,
         image: draft.image || withBase('/products/lamp.jpg'),
         tags: draft.tags
           .split(/[·、,，]/)

@@ -5,16 +5,18 @@ import { useSearchParams } from '../router/AppRouter'
 import { useAppStore } from '../state/AppStore'
 import type { Category } from '../types/market'
 
-type SortMode = 'latest' | 'price-asc' | 'price-desc'
+type SortMode = 'latest' | 'price-asc' | 'price-desc' | 'favorite-first'
 
 export function MarketPage() {
-  const { allProducts } = useAppStore()
+  const { allProducts, favorites } = useAppStore()
   const [params, setParams] = useSearchParams()
   const query = params.get('q') || ''
   const rawCategory = params.get('category') || '全部'
   const category = categories.includes(rawCategory as Category) ? rawCategory as Category : '全部'
   const rawSort = params.get('sort') || 'latest'
-  const sort = ['latest', 'price-asc', 'price-desc'].includes(rawSort) ? rawSort as SortMode : 'latest'
+  const sort = ['latest', 'price-asc', 'price-desc', 'favorite-first'].includes(rawSort)
+    ? rawSort as SortMode
+    : 'latest'
 
   // 搜索、分类和排序均由 URL 查询参数驱动，刷新或分享链接后条件仍可恢复。
   const filteredProducts = useMemo(() => {
@@ -28,8 +30,14 @@ export function MarketPage() {
     })
     if (sort === 'price-asc') return [...result].sort((left, right) => left.price - right.price)
     if (sort === 'price-desc') return [...result].sort((left, right) => right.price - left.price)
+    if (sort === 'favorite-first') {
+      const favoriteIds = new Set(favorites)
+      return [...result].sort(
+        (left, right) => Number(favoriteIds.has(right.id)) - Number(favoriteIds.has(left.id)),
+      )
+    }
     return result
-  }, [allProducts, category, query, sort])
+  }, [allProducts, category, favorites, query, sort])
 
   function updateParam(key: string, value: string, fallback: string) {
     // 默认值不写入地址栏，保持链接简洁。
@@ -64,6 +72,7 @@ export function MarketPage() {
               <option value="latest">最新发布</option>
               <option value="price-asc">价格从低到高</option>
               <option value="price-desc">价格从高到低</option>
+              <option value="favorite-first">已收藏优先</option>
             </select>
           </label>
           <div aria-label="商品分类" className="filter-list">

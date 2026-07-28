@@ -27,6 +27,10 @@ interface Notice {
   id: number
   message: string
   tone: NoticeTone
+  action?: {
+    label: string
+    run: () => Promise<void>
+  }
 }
 
 // 旧版浏览器数据只用于一次性迁移和静态演示版，异常数据会安全回退。
@@ -71,8 +75,10 @@ interface StoreValue {
   lastSyncedAt: string
   refreshSharedData: () => Promise<void>
   addToCart: (product: Product) => Promise<void>
+  addFavoritesToCart: (ids: string[]) => Promise<void>
   updateQuantity: (id: string, quantity: number) => Promise<void>
   toggleFavorite: (id: string) => Promise<void>
+  removeFavorites: (ids: string[]) => Promise<void>
   publishProduct: (draft: ListingDraft) => Promise<Product>
   checkout: (pickup: string, contactTime: string) => Promise<Order>
 }
@@ -135,13 +141,17 @@ export function AppStoreProvider({
     setLastSyncedAt(snapshot.updatedAt)
   }, [])
 
-  const announce = useCallback((message: string, tone: NoticeTone = 'success') => {
-    setNotice({ id: Date.now(), message, tone })
+  const announce = useCallback((
+    message: string,
+    tone: NoticeTone = 'success',
+    action?: Notice['action'],
+  ) => {
+    setNotice({ id: Date.now(), message, tone, action })
   }, [])
 
   useEffect(() => {
     if (!notice) return
-    const timer = window.setTimeout(() => setNotice(null), 3200)
+    const timer = window.setTimeout(() => setNotice(null), notice.action ? 6000 : 3200)
     return () => window.clearTimeout(timer)
   }, [notice])
 
@@ -241,7 +251,8 @@ export function AppStoreProvider({
 
   async function runSharedMutation<T>(
     action: () => Promise<{ store: SharedStoreSnapshot } & T>,
-    successMessage: string,
+    successMessage: string | ((result: { store: SharedStoreSnapshot } & T) => string),
+    noticeAction?: Notice['action'],
   ) {
     setSyncStatus('saving')
     setSyncMessage('正在写入共享空间')
@@ -250,7 +261,11 @@ export function AppStoreProvider({
       applySnapshot(result.store)
       setSyncStatus('ready')
       setSyncMessage('共享数据已同步')
-      announce(successMessage)
+      announce(
+        typeof successMessage === 'function' ? successMessage(result) : successMessage,
+        'success',
+        noticeAction,
+      )
       return result
     } catch (error) {
       const message = error instanceof Error ? error.message : '操作失败，请稍后重试。'
@@ -292,19 +307,117 @@ export function AppStoreProvider({
     )
   }
 
-  async function toggleFavorite(id: string) {
-    const favorite = !favorites.includes(id)
+  function favoriteMessage(id: string, favorite: boolean, count: number) {
+    const title = allProducts.find((product) => product.id === id)?.title || '该商品'
+    return favorite
+      ? `已收藏“${title}”，共 ${count} 件。`
+      : `已取消收藏“${title}”，剩 ${count} 件。`
+  }
+
+  async function setFavorite(id: string, favorite: boolean, allowUndo: boolean) {
+    const undoAction: Notice['action'] | undefined = allowUndo
+      ? {
+          label: '撤销',
+          run: () => setFavorite(id, !favorite, false),
+        }
+      : undefined
+
     if (IS_GITHUB_PAGES_DEMO) {
-      setFavorites((current) =>
-        favorite ? [...current, id] : current.filter((item) => item !== id),
-      )
-      announce(favorite ? '已加入收藏。' : '已取消收藏。')
+      const nextFavorites = favorite
+        ? Array.from(new Set([...favorites, id]))
+        : favorites.filter((item) => item !== id)
+      setFavorites(nextFavorites)
+      announce(favoriteMessage(id, favorite, nextFavorites.length), 'success', undoAction)
       return
     }
     await runSharedMutation(
       async () => ({ store: await setSharedFavorite(id, favorite) }),
-      favorite ? '已加入共享收藏。' : '已取消共享收藏。',
+      (result) => favoriteMessage(id, favorite, result.store.favorites.length),
+      undoAction,
     )
+  }
+
+  async function addFavoritesToCart(ids: string[]) {
+    const validIds = Array.from(new Set(ids)).filter((id) => allProducts.some((product) => product.id === id))
+    const changedIds = validIds.filter((id) => (cart[id] || 0) < 5)
+    if (changedIds.length === 0) {
+      announce('所选物品在清单中均已达到 5 件上限。', 'info')
+      return
+    }
+
+    if (IS_GITHUB_PAGES_DEMO) {
+      setCart((current) => {
+        const next = { ...current }
+        changedIds.forEach((id) => {
+          next[id] = Math.min((next[id] || 0) + 1, 5)
+        })
+        return next
+      })
+      announce(`已将 ${changedIds.length} 件收藏加入清单。`)
+      return
+    }
+
+    await runSharedMutation(
+      async () => {
+        let latestStore: SharedStoreSnapshot | undefined
+        try {
+          for (const id of changedIds) {
+            const currentCart = latestStore?.cart || cart
+            latestStore = await setSharedCartQuantity(id, Math.min((currentCart[id] || 0) + 1, 5))
+          }
+        } catch {
+          if (latestStore) applySnapshot(latestStore)
+          throw new Error('批量加入未全部完成，已同步成功处理的部分，请重试其余物品。')
+        }
+        return { store: latestStore! }
+      },
+      `已将 ${changedIds.length} 件收藏加入共享清单。`,
+    )
+  }
+
+  async function toggleFavorite(id: string) {
+    await setFavorite(id, !favorites.includes(id), true)
+  }
+
+  async function setFavoritesBatch(ids: string[], favorite: boolean, allowUndo: boolean) {
+    const validIds = Array.from(new Set(ids)).filter((id) => allProducts.some((product) => product.id === id))
+    if (validIds.length === 0) return
+    const undoAction: Notice['action'] | undefined = allowUndo
+      ? {
+          label: '撤销',
+          run: () => setFavoritesBatch(validIds, !favorite, false),
+        }
+      : undefined
+    const message = favorite
+      ? `已恢复 ${validIds.length} 件收藏。`
+      : `已取消收藏 ${validIds.length} 件物品。`
+
+    if (IS_GITHUB_PAGES_DEMO) {
+      setFavorites((current) => favorite
+        ? Array.from(new Set([...current, ...validIds]))
+        : current.filter((id) => !validIds.includes(id)))
+      announce(message, 'success', undoAction)
+      return
+    }
+
+    await runSharedMutation(
+      async () => {
+        let latestStore: SharedStoreSnapshot | undefined
+        try {
+          for (const id of validIds) latestStore = await setSharedFavorite(id, favorite)
+        } catch {
+          if (latestStore) applySnapshot(latestStore)
+          throw new Error('批量收藏操作未全部完成，已同步成功处理的部分，请重试其余物品。')
+        }
+        return { store: latestStore! }
+      },
+      message,
+      undoAction,
+    )
+  }
+
+  async function removeFavorites(ids: string[]) {
+    await setFavoritesBatch(ids, false, true)
   }
 
   async function publishProduct(draft: ListingDraft) {
@@ -377,8 +490,10 @@ export function AppStoreProvider({
     lastSyncedAt,
     refreshSharedData,
     addToCart,
+    addFavoritesToCart,
     updateQuantity,
     toggleFavorite,
+    removeFavorites,
     publishProduct,
     checkout,
   }
@@ -390,7 +505,22 @@ export function AppStoreProvider({
         <div className="action-toast" data-tone={notice.tone} key={notice.id} role="status">
           <span aria-hidden="true" />
           <p>{notice.message}</p>
-          <button aria-label="关闭提示" onClick={() => setNotice(null)} type="button">关闭</button>
+          <div className="action-toast-actions">
+            {notice.action && (
+              <button
+                className="toast-undo"
+                onClick={() => {
+                  const action = notice.action
+                  setNotice(null)
+                  void action?.run().catch(() => undefined)
+                }}
+                type="button"
+              >
+                {notice.action.label}
+              </button>
+            )}
+            <button aria-label="关闭提示" onClick={() => setNotice(null)} type="button">关闭</button>
+          </div>
         </div>
       )}
     </StoreContext.Provider>

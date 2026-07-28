@@ -13,6 +13,20 @@ interface StoreResponse {
   store: SharedStoreSnapshot
 }
 
+export class StoreApiError extends Error {
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'StoreApiError'
+    this.status = status
+  }
+}
+
+export function isUnauthorizedStoreError(error: unknown): error is StoreApiError {
+  return error instanceof StoreApiError && error.status === 401
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await authFetch(path, {
     ...init,
@@ -23,7 +37,10 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   })
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
-    throw new Error(String(payload.message || '共享数据暂时不可用，请稍后重试。'))
+    throw new StoreApiError(
+      String(payload.message || '共享数据暂时不可用，请稍后重试。'),
+      response.status,
+    )
   }
   return payload as T
 }

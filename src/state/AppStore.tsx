@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
@@ -14,9 +15,10 @@ import {
   importLegacyStore,
   setSharedCartQuantity,
   setSharedFavorite,
+  isUnauthorizedStoreError,
   type SharedStoreSnapshot,
 } from '../api/storeApi'
-import type { AuthUser } from '../api/authClient'
+import { AUTH_SESSION_VERIFIED_EVENT, type AuthUser } from '../api/authClient'
 import { IS_GITHUB_PAGES_DEMO, withBase } from '../config/runtime'
 import { products } from '../data/products'
 import type { ListingDraft, Order, Product } from '../types/market'
@@ -32,6 +34,11 @@ interface Notice {
     label: string
     run: () => Promise<void>
   }
+}
+
+interface StoreRequestToken {
+  sequence: number
+  userId: string
 }
 
 // 旧版浏览器数据只用于一次性迁移和静态演示版，异常数据会安全回退。
@@ -118,6 +125,20 @@ export function AppStoreProvider({
   )
   const [lastSyncedAt, setLastSyncedAt] = useState('')
   const [notice, setNotice] = useState<Notice | null>(null)
+  const requestStateRef = useRef({
+    active: true,
+    lastAppliedSequence: 0,
+    nextSequence: 0,
+    userId: currentUser.id,
+  })
+
+  useEffect(() => {
+    const requestState = requestStateRef.current
+    requestState.active = true
+    return () => {
+      requestState.active = false
+    }
+  }, [])
 
   const userProducts = useMemo(
     () => allProducts.filter((product) => product.isOwner),
@@ -148,6 +169,53 @@ export function AppStoreProvider({
     setLastSyncedAt(snapshot.updatedAt)
   }, [])
 
+  const beginRequest = useCallback((): StoreRequestToken => {
+    const requestState = requestStateRef.current
+    return {
+      sequence: ++requestState.nextSequence,
+      userId: currentUser.id,
+    }
+  }, [currentUser.id])
+
+  const canReportRequest = useCallback((request: StoreRequestToken) => {
+    const requestState = requestStateRef.current
+    return requestState.active
+      && request.userId === requestState.userId
+      && request.sequence >= requestState.lastAppliedSequence
+  }, [])
+
+  const applyRequestSnapshot = useCallback((
+    request: StoreRequestToken,
+    snapshot: SharedStoreSnapshot,
+  ) => {
+    if (!canReportRequest(request)) return false
+    requestStateRef.current.lastAppliedSequence = request.sequence
+    applySnapshot(snapshot)
+    return true
+  }, [applySnapshot, canReportRequest])
+
+  const clearPrivateSnapshot = useCallback(() => {
+    setAllProducts(products)
+    setFavorites([])
+    setCart({})
+    setOrders([])
+    setLastSyncedAt('')
+    setNotice(null)
+  }, [])
+
+  const handleUnauthorized = useCallback((
+    error: unknown,
+    request: StoreRequestToken,
+  ) => {
+    if (!isUnauthorizedStoreError(error)) return false
+    if (canReportRequest(request)) {
+      clearPrivateSnapshot()
+      setSyncStatus('error')
+      setSyncMessage('登录已失效，请重新登录')
+    }
+    return true
+  }, [canReportRequest, clearPrivateSnapshot])
+
   const announce = useCallback((
     message: string,
     tone: NoticeTone = 'success',
@@ -167,24 +235,33 @@ export function AppStoreProvider({
       announce('静态演示版使用本机数据。', 'info')
       return
     }
+    const request = beginRequest()
     setSyncStatus('loading')
     setSyncMessage('正在获取组员的最新修改')
     try {
       const snapshot = await fetchSharedStore()
-      applySnapshot(snapshot)
+      if (!applyRequestSnapshot(request, snapshot)) return
       setSyncStatus('ready')
       setSyncMessage('共享数据已同步')
     } catch (error) {
-      setSyncStatus('error')
-      setSyncMessage(error instanceof Error ? error.message : '共享数据同步失败')
-      announce('同步失败，请稍后点击状态按钮重试。', 'error')
+      if (!handleUnauthorized(error, request) && canReportRequest(request)) {
+        setSyncStatus('error')
+        setSyncMessage(error instanceof Error ? error.message : '共享数据同步失败')
+        announce('同步失败，请稍后点击状态按钮重试。', 'error')
+      }
       throw error
     }
-  }, [announce, applySnapshot])
+  }, [
+    announce,
+    applyRequestSnapshot,
+    beginRequest,
+    canReportRequest,
+    handleUnauthorized,
+  ])
 
   useEffect(() => {
     if (IS_GITHUB_PAGES_DEMO) return
-    let active = true
+    const request = beginRequest()
 
     async function initializeSharedStore() {
       try {
@@ -206,8 +283,7 @@ export function AppStoreProvider({
             throw new Error(`仍有 ${missingProducts.length} 件本地商品未迁移，原数据已保留。`)
           }
         }
-        if (!active) return
-        applySnapshot(snapshot)
+        if (!applyRequestSnapshot(request, snapshot)) return
         setSyncStatus('ready')
         setSyncMessage(shouldImport ? '本地数据已迁移到共享空间' : '共享数据已同步')
         if (shouldImport) {
@@ -217,39 +293,51 @@ export function AppStoreProvider({
           announce('本机原有数据已安全迁移，组员现在可以共同查看。')
         }
       } catch (error) {
-        if (!active) return
-        setSyncStatus('error')
-        setSyncMessage(error instanceof Error ? error.message : '共享数据同步失败')
+        if (!handleUnauthorized(error, request) && canReportRequest(request)) {
+          setSyncStatus('error')
+          setSyncMessage(error instanceof Error ? error.message : '共享数据同步失败')
+        }
       }
     }
 
     void initializeSharedStore()
-    return () => {
-      active = false
-    }
-  }, [announce, applySnapshot, currentUser.id, legacy])
+  }, [
+    announce,
+    applyRequestSnapshot,
+    beginRequest,
+    canReportRequest,
+    currentUser.id,
+    handleUnauthorized,
+    legacy,
+  ])
 
   useEffect(() => {
     if (IS_GITHUB_PAGES_DEMO) return
     const refreshSilently = async () => {
       if (document.visibilityState !== 'visible') return
+      const request = beginRequest()
       try {
         const snapshot = await fetchSharedStore()
-        applySnapshot(snapshot)
+        if (!applyRequestSnapshot(request, snapshot)) return
         setSyncStatus('ready')
         setSyncMessage('共享数据已同步')
-      } catch {
-        setSyncStatus('error')
-        setSyncMessage('暂时无法获取最新数据')
+      } catch (error) {
+        if (!handleUnauthorized(error, request) && canReportRequest(request)) {
+          setSyncStatus('error')
+          setSyncMessage('暂时无法获取最新数据')
+        }
       }
     }
-    const timer = window.setInterval(refreshSilently, 30000)
-    window.addEventListener('focus', refreshSilently)
+    window.addEventListener(AUTH_SESSION_VERIFIED_EVENT, refreshSilently)
     return () => {
-      window.clearInterval(timer)
-      window.removeEventListener('focus', refreshSilently)
+      window.removeEventListener(AUTH_SESSION_VERIFIED_EVENT, refreshSilently)
     }
-  }, [applySnapshot])
+  }, [
+    applyRequestSnapshot,
+    beginRequest,
+    canReportRequest,
+    handleUnauthorized,
+  ])
 
   // 静态演示版保留原有本地能力；完整在线版不再把业务状态写入浏览器。
   useEffect(() => {
@@ -261,15 +349,16 @@ export function AppStoreProvider({
   }, [cart, favorites, orders, userProducts])
 
   async function runSharedMutation<T>(
-    action: () => Promise<{ store: SharedStoreSnapshot } & T>,
+    action: (request: StoreRequestToken) => Promise<{ store: SharedStoreSnapshot } & T>,
     successMessage: string | ((result: { store: SharedStoreSnapshot } & T) => string),
     noticeAction?: Notice['action'],
   ) {
+    const request = beginRequest()
     setSyncStatus('saving')
     setSyncMessage('正在写入共享空间')
     try {
-      const result = await action()
-      applySnapshot(result.store)
+      const result = await action(request)
+      if (!applyRequestSnapshot(request, result.store)) return result
       setSyncStatus('ready')
       setSyncMessage('共享数据已同步')
       announce(
@@ -279,10 +368,12 @@ export function AppStoreProvider({
       )
       return result
     } catch (error) {
-      const message = error instanceof Error ? error.message : '操作失败，请稍后重试。'
-      setSyncStatus('error')
-      setSyncMessage(message)
-      announce(message, 'error')
+      if (!handleUnauthorized(error, request) && canReportRequest(request)) {
+        const message = error instanceof Error ? error.message : '操作失败，请稍后重试。'
+        setSyncStatus('error')
+        setSyncMessage(message)
+        announce(message, 'error')
+      }
       throw error
     }
   }
@@ -371,7 +462,7 @@ export function AppStoreProvider({
     }
 
     await runSharedMutation(
-      async () => {
+      async (request) => {
         let latestStore: SharedStoreSnapshot | undefined
         try {
           for (const id of changedIds) {
@@ -381,8 +472,9 @@ export function AppStoreProvider({
               Math.min((currentCart[id] || 0) + 1, 5),
             )
           }
-        } catch {
-          if (latestStore) applySnapshot(latestStore)
+        } catch (error) {
+          if (latestStore) applyRequestSnapshot(request, latestStore)
+          if (isUnauthorizedStoreError(error)) throw error
           throw new Error('批量加入未全部完成，已同步成功处理的部分，请重试其余物品。')
         }
         return { store: latestStore! }
@@ -415,14 +507,15 @@ export function AppStoreProvider({
     }
 
     await runSharedMutation(
-      async () => {
+      async (request) => {
         let latestStore: SharedStoreSnapshot | undefined
         try {
           for (const id of validIds) {
             latestStore = await setSharedFavorite(id, favorite)
           }
-        } catch {
-          if (latestStore) applySnapshot(latestStore)
+        } catch (error) {
+          if (latestStore) applyRequestSnapshot(request, latestStore)
+          if (isUnauthorizedStoreError(error)) throw error
           throw new Error('批量收藏操作未全部完成，已同步成功处理的部分，请重试其余物品。')
         }
         return { store: latestStore! }

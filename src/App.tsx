@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  AUTH_EXPIRED_EVENT,
+  AUTH_SESSION_VERIFIED_EVENT,
   logout as logoutSession,
   resolveInitialSession,
   type AuthUser,
@@ -48,42 +50,78 @@ export default function App() {
     IS_GITHUB_PAGES_DEMO ? demoUser : null,
   )
   const [sessionExpired, setSessionExpired] = useState(false)
+  const currentUserRef = useRef<AuthUser | null>(
+    IS_GITHUB_PAGES_DEMO ? demoUser : null,
+  )
+  const sessionCheckSequence = useRef(0)
+
+  const showSignedOut = useCallback((expired: boolean) => {
+    sessionCheckSequence.current += 1
+    currentUserRef.current = null
+    setCurrentUser(null)
+    setSessionExpired(expired)
+    setAuthState('signed-out')
+  }, [])
+
+  const verifyCurrentSession = useCallback(async (initial = false) => {
+    const sequence = ++sessionCheckSequence.current
+    try {
+      const user = await resolveInitialSession()
+      if (sequence !== sessionCheckSequence.current) return
+      if (!user) {
+        showSignedOut(!initial)
+        return
+      }
+
+      const previousUser = currentUserRef.current
+      if (previousUser?.id !== user.id) {
+        currentUserRef.current = user
+        setCurrentUser(user)
+        setSessionExpired(false)
+        setAuthState('signed-in')
+        return
+      }
+
+      window.dispatchEvent(new CustomEvent(AUTH_SESSION_VERIFIED_EVENT))
+    } catch {
+      if (sequence === sessionCheckSequence.current && initial) {
+        showSignedOut(false)
+      }
+    }
+  }, [showSignedOut])
 
   useEffect(() => {
     if (IS_GITHUB_PAGES_DEMO) return
-    let active = true
-
-    void resolveInitialSession()
-      .then((user) => {
-        if (!active) return
-        setCurrentUser(user)
-        setAuthState(user ? 'signed-in' : 'signed-out')
-      })
-      .catch(() => {
-        if (active) setAuthState('signed-out')
-      })
+    void verifyCurrentSession(true)
 
     // 普通接口刷新会话失败时，统一回到登录页并给出明确提示。
-    const handleExpiredSession = () => {
-      setCurrentUser(null)
-      setSessionExpired(true)
-      setAuthState('signed-out')
-    }
-    window.addEventListener('echo-market-auth-expired', handleExpiredSession)
+    const handleExpiredSession = () => showSignedOut(true)
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleExpiredSession)
     return () => {
-      active = false
-      window.removeEventListener('echo-market-auth-expired', handleExpiredSession)
+      sessionCheckSequence.current += 1
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpiredSession)
     }
-  }, [])
+  }, [showSignedOut, verifyCurrentSession])
+
+  useEffect(() => {
+    if (IS_GITHUB_PAGES_DEMO || authState !== 'signed-in') return
+    // 账号可能在其他标签页发生变化；先确认身份，再允许 Store 拉取快照。
+    const verifyAndRefresh = () => void verifyCurrentSession()
+    const timer = window.setInterval(verifyAndRefresh, 30000)
+    const handleFocus = verifyAndRefresh
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [authState, verifyCurrentSession])
 
   async function logout() {
     if (IS_GITHUB_PAGES_DEMO) return
     try {
       await logoutSession()
     } finally {
-      setCurrentUser(null)
-      setSessionExpired(false)
-      setAuthState('signed-out')
+      showSignedOut(false)
     }
   }
 
@@ -92,6 +130,8 @@ export default function App() {
     return (
       <LoginScreen
         onSignedIn={(user) => {
+          sessionCheckSequence.current += 1
+          currentUserRef.current = user
           setCurrentUser(user)
           setSessionExpired(false)
           setAuthState('signed-in')
@@ -102,7 +142,7 @@ export default function App() {
   }
 
   return (
-    <AppStoreProvider currentUser={currentUser}>
+    <AppStoreProvider currentUser={currentUser} key={currentUser.id}>
       <RouteContent onLogout={logout} />
     </AppStoreProvider>
   )

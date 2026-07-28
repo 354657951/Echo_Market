@@ -3,6 +3,9 @@ export interface AuthUser {
   username: string
 }
 
+export const AUTH_EXPIRED_EVENT = 'echo-market-auth-expired'
+export const AUTH_SESSION_VERIFIED_EVENT = 'echo-market-auth-session-verified'
+
 interface AuthPayload {
   authenticated: boolean
   user: AuthUser | null
@@ -66,13 +69,13 @@ export async function authFetch(
 
   const refreshed = await refreshAuthSession()
   if (!refreshed) {
-    window.dispatchEvent(new CustomEvent('echo-market-auth-expired'))
+    window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT))
     return response
   }
 
   const retried = await fetch(input, init)
   if (retried.status === 401) {
-    window.dispatchEvent(new CustomEvent('echo-market-auth-expired'))
+    window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT))
   }
   return retried
 }

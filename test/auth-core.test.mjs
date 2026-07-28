@@ -6,6 +6,7 @@ import {
   hashRefreshSecret,
   normalizeUsername,
   parseRefreshToken,
+  PASSWORD_ITERATIONS,
   signAccessToken,
   validateUsername,
   verifyAccessToken,
@@ -18,6 +19,8 @@ test('password hashes use random salts and verify safely', async () => {
   const first = await hashPassword('correct horse battery staple')
   const second = await hashPassword('correct horse battery staple')
   assert.notEqual(first, second)
+  assert.equal(Number(first.split('$')[1]), PASSWORD_ITERATIONS)
+  assert.equal(PASSWORD_ITERATIONS, 100_000)
   assert.equal(await verifyPassword('correct horse battery staple', first), true)
   assert.equal(await verifyPassword('wrong password', first), false)
   assert.equal(await verifyPassword('anything', 'broken'), false)

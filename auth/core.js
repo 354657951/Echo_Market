@@ -5,7 +5,9 @@ export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
 export const JWT_ISSUER = 'echo-market'
 export const JWT_AUDIENCE = 'echo-market-web'
 
-const passwordIterations = 600_000
+// Sites 运行时的 Web Crypto 对单次 PBKDF2 最多支持 100000 次迭代。
+// 哈希结果会记录实际迭代次数，验证函数仍可识别旧版哈希格式。
+export const PASSWORD_ITERATIONS = 100_000
 const textEncoder = new TextEncoder()
 
 function toBase64Url(bytes) {
@@ -59,7 +61,7 @@ function randomBytes(length) {
   return bytes
 }
 
-async function derivePassword(password, salt, iterations = passwordIterations) {
+async function derivePassword(password, salt, iterations = PASSWORD_ITERATIONS) {
   const key = await crypto.subtle.importKey(
     'raw',
     textEncoder.encode(password),
@@ -79,7 +81,7 @@ export async function hashPassword(password) {
   const validated = validatePassword(password)
   const salt = randomBytes(16)
   const hash = await derivePassword(validated, salt)
-  return `pbkdf2-sha256$${passwordIterations}$${toBase64Url(salt)}$${toBase64Url(hash)}`
+  return `pbkdf2-sha256$${PASSWORD_ITERATIONS}$${toBase64Url(salt)}$${toBase64Url(hash)}`
 }
 
 export async function verifyPassword(password, encodedHash) {

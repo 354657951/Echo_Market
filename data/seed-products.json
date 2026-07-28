@@ -10,7 +10,10 @@
     "seller": "林同学",
     "image": "/products/keyboard.jpg",
     "tags": ["键盘", "轻办公", "当面验货"],
-    "postedAt": "今天 09:24"
+    "postedAt": "今天 09:24",
+    "flaws": "右下角有轻微划痕，蓝牙偶尔需要重新配对，按键功能正常。",
+    "accessories": "原装充电线、说明书",
+    "tradeNote": "仅限校内自提，建议当面测试按键与蓝牙连接。"
   },
   {
     "id": "camera-02",
@@ -23,7 +26,10 @@
     "seller": "周同学",
     "image": "/products/camera.jpg",
     "tags": ["摄影", "配件齐全", "可试机"],
-    "postedAt": "昨天 18:10"
+    "postedAt": "昨天 18:10",
+    "flaws": "机身顶部有一处小磕碰，镜头盖略有松动，拍摄功能正常。",
+    "accessories": "原装电池 ×2、充电器、腕带、镜头盖",
+    "tradeNote": "支持现场试拍，确认成色与功能后再交易。"
   },
   {
     "id": "headphones-03",
@@ -36,7 +42,10 @@
     "seller": "陈同学",
     "image": "/products/headphones.jpg",
     "tags": ["音乐", "有线耳机", "试听"],
-    "postedAt": "07 月 24 日"
+    "postedAt": "07 月 24 日",
+    "flaws": "耳罩皮质有轻微磨损，线材接口需插紧使用。",
+    "accessories": "收纳袋、3.5mm 转 6.35mm 转接头",
+    "tradeNote": "可自带设备试听，确认声音表现后再交易。"
   },
   {
     "id": "books-04",
@@ -49,7 +58,10 @@
     "seller": "许同学",
     "image": "/products/books.jpg",
     "tags": ["教材", "计算机", "打包出"],
-    "postedAt": "07 月 23 日"
+    "postedAt": "07 月 23 日",
+    "flaws": "封面与书脊有正常使用痕迹，内页存在少量重点标注。",
+    "accessories": "三本教材成套交付",
+    "tradeNote": "三本打包转让，主楼大厅当面验书。"
   },
   {
     "id": "bicycle-05",
@@ -62,7 +74,10 @@
     "seller": "沈同学",
     "image": "/products/bicycle.jpg",
     "tags": ["通勤", "变速", "可试骑"],
-    "postedAt": "07 月 22 日"
+    "postedAt": "07 月 22 日",
+    "flaws": "车架有几处划痕和掉漆，前灯需要更换电池。",
+    "accessories": "车锁、便携打气筒",
+    "tradeNote": "需现场试骑并确认刹车、变速和车况。"
   },
   {
     "id": "lamp-06",
@@ -75,6 +90,9 @@
     "seller": "顾同学",
     "image": "/products/lamp.jpg",
     "tags": ["宿舍", "阅读", "暖光"],
-    "postedAt": "07 月 21 日"
+    "postedAt": "07 月 21 日",
+    "flaws": "底座一角的防滑垫脱落，不影响放置与调光。",
+    "accessories": "USB 供电线",
+    "tradeNote": "工作日晚上可在宿舍楼下试灯。"
   }
 ]

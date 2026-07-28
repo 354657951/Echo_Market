@@ -19,6 +19,9 @@ const schema = [
     campus TEXT NOT NULL,
     seller TEXT NOT NULL,
     seller_id TEXT,
+    flaws TEXT NOT NULL DEFAULT '',
+    accessories TEXT NOT NULL DEFAULT '',
+    trade_note TEXT NOT NULL DEFAULT '',
     image TEXT NOT NULL,
     tags_json TEXT NOT NULL,
     posted_at TEXT NOT NULL,
@@ -86,6 +89,9 @@ function validateProduct(payload) {
     condition: cleanText(payload.condition, 30) || '成色待确认',
     price: Math.round(Number(payload.price)),
     tags: parseTags(payload.tags),
+    flaws: cleanText(payload.flaws, 500),
+    accessories: cleanText(payload.accessories, 300),
+    tradeNote: cleanText(payload.tradeNote, 500),
   }
   if (product.title.length < 2 || product.description.length < 4) {
     throw new Error('请补全商品标题和描述。')
@@ -113,6 +119,9 @@ function mapProduct(row, userId) {
     condition: row.condition,
     campus: row.campus,
     seller: row.seller,
+    flaws: row.flaws || undefined,
+    accessories: row.accessories || undefined,
+    tradeNote: row.trade_note || undefined,
     image: row.image,
     tags: parseTags(JSON.parse(row.tags_json || '[]')),
     postedAt: row.posted_at,
@@ -124,8 +133,8 @@ function insertProductStatement(db, product, source) {
   return db.prepare(
     `INSERT OR IGNORE INTO products (
       id,title,category,description,price,condition,campus,seller,seller_id,
-      image,tags_json,posted_at,created_at,source
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      flaws,accessories,trade_note,image,tags_json,posted_at,created_at,source
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   ).bind(
     product.id,
     product.title,
@@ -136,6 +145,9 @@ function insertProductStatement(db, product, source) {
     product.campus,
     product.seller,
     product.sellerId || null,
+    product.flaws || '',
+    product.accessories || '',
+    product.tradeNote || '',
     product.image,
     JSON.stringify(product.tags),
     product.postedAt,
@@ -221,6 +233,24 @@ async function ensureStore(env) {
 
   // 运行时兜底使旧部署即使漏跑迁移，也不会因缺少列而直接报错。
   await ensureColumn(db, 'products', 'seller_id', 'TEXT')
+  await ensureColumn(
+    db,
+    'products',
+    'flaws',
+    "TEXT NOT NULL DEFAULT ''",
+  )
+  await ensureColumn(
+    db,
+    'products',
+    'accessories',
+    "TEXT NOT NULL DEFAULT ''",
+  )
+  await ensureColumn(
+    db,
+    'products',
+    'trade_note',
+    "TEXT NOT NULL DEFAULT ''",
+  )
   await ensureColumn(db, 'orders', 'user_id', 'TEXT')
   await migrateSingleUserData(db)
 
@@ -239,6 +269,34 @@ async function ensureStore(env) {
       db.prepare(
         `INSERT INTO store_meta(key,value,updated_at)
          VALUES('seed_version','1',?)`,
+      ).bind(timestamp),
+    )
+    await db.batch(statements)
+  }
+
+  // 已部署过的种子商品不会再次插入，因此单独补齐本次新增的详情字段。
+  const productDetailsSeeded = await db
+    .prepare(
+      "SELECT value FROM store_meta WHERE key='product_detail_seed_v1'",
+    )
+    .first()
+  if (!productDetailsSeeded) {
+    const timestamp = now()
+    const statements = seedProducts.map((product) =>
+      db.prepare(
+        `UPDATE products
+         SET flaws=?, accessories=?, trade_note=?
+         WHERE id=? AND source='seed'`,
+      ).bind(
+        product.flaws || '',
+        product.accessories || '',
+        product.tradeNote || '',
+        product.id,
+      ))
+    statements.push(
+      db.prepare(
+        `INSERT INTO store_meta(key,value,updated_at)
+         VALUES('product_detail_seed_v1','done',?)`,
       ).bind(timestamp),
     )
     await db.batch(statements)

@@ -13,6 +13,7 @@ const dataDir = process.env.LOCAL_DATA_DIR
 const uploadDir = resolve(dataDir, 'uploads')
 const storeFile = resolve(dataDir, 'store.json')
 const seedFile = new URL('./data/seed-products.json', import.meta.url)
+const seedProductsPromise = readFile(seedFile, 'utf8').then(JSON.parse)
 const categories = new Set(['数码', '学习', '生活', '运动', '影音'])
 const imageTypes = new Map([
   ['image/jpeg', 'jpg'],
@@ -44,6 +45,9 @@ function validateProductFields(payload) {
     condition: cleanText(payload.condition, 30) || '成色待确认',
     price: Math.round(Number(payload.price)),
     tags: normalizeTags(payload.tags),
+    flaws: cleanText(payload.flaws, 500),
+    accessories: cleanText(payload.accessories, 300),
+    tradeNote: cleanText(payload.tradeNote, 500),
   }
   if (product.title.length < 2 || product.description.length < 4) {
     throw new Error('请补全商品标题和描述。')
@@ -62,7 +66,7 @@ function validateProductFields(payload) {
 }
 
 async function createInitialState() {
-  const products = JSON.parse(await readFile(seedFile, 'utf8'))
+  const products = await seedProductsPromise
   return {
     products: products.map((product) => ({ ...product, sellerId: null })),
     users: [],
@@ -75,8 +79,12 @@ async function createInitialState() {
 }
 
 // 将单用户版本的数据结构升级为按用户隔离的结构，旧发布归原管理员所有。
-function normalizeState(rawState) {
+async function normalizeState(rawState) {
   const state = rawState && typeof rawState === 'object' ? rawState : {}
+  const seedProducts = await seedProductsPromise
+  const seedProductById = new Map(
+    seedProducts.map((product) => [product.id, product]),
+  )
   const hasUserFavorites =
     state.userFavorites
     && typeof state.userFavorites === 'object'
@@ -88,12 +96,27 @@ function normalizeState(rawState) {
 
   return {
     products: (Array.isArray(state.products) ? state.products : []).map(
-      (product) => ({
-        ...product,
-        sellerId:
-          product.sellerId
-          || (String(product.id).startsWith('user-') ? LEGACY_USER_ID : null),
-      }),
+      (product) => {
+        // 旧版种子数据补齐结构化详情；用户发布的内容保持原样。
+        const seedProduct = seedProductById.get(product.id)
+        return {
+          ...product,
+          flaws: cleanText(product.flaws, 500) || seedProduct?.flaws || '',
+          accessories:
+            cleanText(product.accessories, 300)
+            || seedProduct?.accessories
+            || '',
+          tradeNote:
+            cleanText(product.tradeNote, 500)
+            || seedProduct?.tradeNote
+            || '',
+          sellerId:
+            product.sellerId
+            || (String(product.id).startsWith('user-')
+              ? LEGACY_USER_ID
+              : null),
+        }
+      },
     ),
     users: Array.isArray(state.users) ? state.users : [],
     refreshSessions: (Array.isArray(state.refreshSessions)

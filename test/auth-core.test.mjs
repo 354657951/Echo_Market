@@ -34,7 +34,14 @@ test('access JWT verifies claims and rejects tampering', async () => {
   const value = await verifyAccessToken(token, secret)
   assert.deepEqual(value.user, { id: 'user-1', username: 'campus' })
   assert.equal(value.sessionId, 'session-1')
-  await assert.rejects(() => verifyAccessToken(`${token.slice(0, -1)}x`, secret))
+  const [header, payload, signature] = token.split('.')
+  const tamperedSignature =
+    `${signature[0] === 'A' ? 'B' : 'A'}${signature.slice(1)}`
+  await assert.rejects(() =>
+    verifyAccessToken(
+      `${header}.${payload}.${tamperedSignature}`,
+      secret,
+    ))
 })
 
 test('refresh tokens expose only a selector and hashable secret', async () => {

@@ -56,9 +56,22 @@ assert.equal(result.response.status, 201)
 
 result = await alice.request('/api/products', {
   method: 'POST',
-  body: JSON.stringify({ title: '隔离测试商品', description: '仅用于本地鉴权集成测试', category: '生活', condition: '九成新', price: 10, tags: [] }),
+  body: JSON.stringify({
+    title: '隔离测试商品',
+    description: '仅用于本地鉴权集成测试',
+    category: '生活',
+    condition: '九成新',
+    price: 10,
+    tags: [],
+    flaws: '右下角有轻微划痕',
+    accessories: '充电线',
+    tradeNote: '当面验货',
+  }),
 })
 assert.equal(result.response.status, 201)
+assert.equal(result.body.product.flaws, '右下角有轻微划痕')
+assert.equal(result.body.product.accessories, '充电线')
+assert.equal(result.body.product.tradeNote, '当面验货')
 const productId = result.body.product.id
 
 result = await alice.request(`/api/favorites/${productId}`, { method: 'PUT', body: JSON.stringify({ favorite: true }) })
@@ -66,7 +79,13 @@ assert.equal(result.response.status, 200)
 result = await bob.request('/api/store')
 assert.equal(result.response.status, 200)
 assert.equal(result.body.store.favorites.includes(productId), false)
-assert.equal(result.body.store.products.some((product) => product.id === productId), true)
+const sharedProduct = result.body.store.products.find(
+  (product) => product.id === productId,
+)
+assert.equal(Boolean(sharedProduct), true)
+assert.equal(sharedProduct.flaws, '右下角有轻微划痕')
+assert.equal(sharedProduct.accessories, '充电线')
+assert.equal(sharedProduct.tradeNote, '当面验货')
 
 result = await bob.request(`/api/products/${productId}`, { method: 'DELETE' })
 assert.equal(result.response.status, 403)

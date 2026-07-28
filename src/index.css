@@ -745,6 +745,31 @@ a {
   font-size: 1.25rem;
 }
 
+.preview-detail-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1.1rem 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid #2f2f2f;
+}
+
+.preview-detail-list div {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  font-size: 0.7rem;
+  line-height: 1.55;
+}
+
+.preview-detail-list dt {
+  color: #777;
+}
+
+.preview-detail-list dd {
+  margin: 0;
+  color: #d4d4d4;
+}
+
 .preview-content > p:not(:first-child) {
   min-height: 3rem;
   margin: 0 0 1.2rem;
@@ -1769,10 +1794,96 @@ footer > p {
   background: #151515;
 }
 
-.product-page-image img {
+.image-zoom-trigger {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: zoom-in;
+}
+
+.image-zoom-trigger img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.image-zoom-trigger > span {
+  position: absolute;
+  right: 1.2rem;
+  bottom: 1.2rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(6px);
+  font-size: 0.68rem;
+}
+
+.image-zoom-trigger:hover img {
+  transform: scale(1.02);
+}
+
+.image-zoom-trigger:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -4px;
+}
+
+.image-dialog {
+  width: min(94vw, 1440px);
+  max-width: none;
+  max-height: 94vh;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #303030;
+  border-radius: 1rem;
+  background: #050505;
+  color: #fff;
+}
+
+.image-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.88);
+}
+
+.image-dialog-frame {
+  display: flex;
+  max-height: 94vh;
+  flex-direction: column;
+}
+
+.image-dialog-heading {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid #242424;
+}
+
+.image-dialog-heading p {
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-dialog-heading .outline-action {
+  padding: 0.55rem 0.85rem;
+}
+
+.image-dialog-frame > img {
+  display: block;
+  width: 100%;
+  max-height: calc(94vh - 66px);
+  object-fit: contain;
 }
 
 .product-page-content {
@@ -1817,6 +1928,7 @@ footer > p {
 
 .detail-list div {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 2rem;
   padding: 0.8rem 0;
@@ -1829,7 +1941,10 @@ footer > p {
 }
 
 .detail-list dd {
+  max-width: min(68%, 520px);
   margin: 0;
+  line-height: 1.55;
+  text-align: right;
 }
 
 .detail-actions {

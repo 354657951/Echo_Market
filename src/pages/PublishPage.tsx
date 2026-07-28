@@ -19,6 +19,9 @@ const emptyDraft: ListingDraft = {
   condition: '九成新',
   tags: '',
   image: '',
+  flaws: '',
+  accessories: '',
+  tradeNote: '',
 }
 
 function readFileAsDataUrl(file: File) {
@@ -205,7 +208,7 @@ export function PublishPage() {
       <section className="route-hero compact light">
         <p className="eyebrow">AI LISTING STUDIO</p>
         <h1>发布一件闲置</h1>
-        <p>AI 结合照片与说明整理信息，你负责确认每一条事实。</p>
+        <p>AI 结合照片与说明整理信息，你负责确认瑕疵、配件和交接约定。</p>
       </section>
 
       <section className="route-section publish-layout">
@@ -310,9 +313,42 @@ export function PublishPage() {
               value={draft.description}
             />
           </div>
+          <div className="field full">
+            <label htmlFor="listing-flaws">已知瑕疵（选填）</label>
+            <textarea
+              id="listing-flaws"
+              maxLength={500}
+              onChange={(event) => updateDraft('flaws', event.target.value)}
+              placeholder="例如：外壳右下角有轻微划痕，功能和按键均正常"
+              rows={3}
+              value={draft.flaws}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="listing-accessories">随附物品（选填）</label>
+            <input
+              id="listing-accessories"
+              maxLength={300}
+              onChange={(event) =>
+                updateDraft('accessories', event.target.value)}
+              placeholder="充电线、包装盒、说明书"
+              value={draft.accessories}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="listing-trade-note">交易备注（选填）</label>
+            <input
+              id="listing-trade-note"
+              maxLength={500}
+              onChange={(event) =>
+                updateDraft('tradeNote', event.target.value)}
+              placeholder="自提时间、验货或议价说明"
+              value={draft.tradeNote}
+            />
+          </div>
           <label className="truth-check full">
             <input required type="checkbox" />
-            <span>我确认标题、价格、成色和瑕疵描述均与实物一致。</span>
+            <span>我确认标题、价格、成色、瑕疵和配件信息均与实物一致。</span>
           </label>
           <button className="publish-button full" disabled={publishing} type="submit">
             {publishing ? '正在发布并同步…' : '确认信息并发布'}
@@ -343,6 +379,19 @@ export function PublishPage() {
                 .slice(0, 4)
                 .map((tag) => <span key={tag}>{tag}</span>)}
             </div>
+            {(draft.flaws || draft.accessories || draft.tradeNote) && (
+              <dl className="preview-detail-list">
+                {draft.flaws && (
+                  <div><dt>已知瑕疵</dt><dd>{draft.flaws}</dd></div>
+                )}
+                {draft.accessories && (
+                  <div><dt>随附物品</dt><dd>{draft.accessories}</dd></div>
+                )}
+                {draft.tradeNote && (
+                  <div><dt>交易备注</dt><dd>{draft.tradeNote}</dd></div>
+                )}
+              </dl>
+            )}
           </div>
         </aside>
       </section>

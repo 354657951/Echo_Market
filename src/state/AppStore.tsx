@@ -337,6 +337,9 @@ export function AppStoreProvider({
           .filter(Boolean)
           .slice(0, 4),
         postedAt: '刚刚发布',
+        flaws: draft.flaws.trim() || undefined,
+        accessories: draft.accessories.trim() || undefined,
+        tradeNote: draft.tradeNote.trim() || undefined,
       }
       setAllProducts((current) => [product, ...current])
       announce('商品已保存到本机演示数据。')

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AUTH_EXPIRED_EVENT,
+  AUTH_SESSION_CHANGED_EVENT,
   AUTH_SESSION_VERIFIED_EVENT,
   logout as logoutSession,
   resolveInitialSession,
+  type AuthExpiredEventDetail,
+  type AuthSessionChangedEventDetail,
   type AuthUser,
 } from './api/authClient'
 import { AuthChecking, LoginScreen } from './components/auth/AuthScreens'
@@ -63,6 +66,14 @@ export default function App() {
     setAuthState('signed-out')
   }, [])
 
+  const showSignedIn = useCallback((user: AuthUser) => {
+    sessionCheckSequence.current += 1
+    currentUserRef.current = user
+    setCurrentUser(user)
+    setSessionExpired(false)
+    setAuthState('signed-in')
+  }, [])
+
   const verifyCurrentSession = useCallback(async (initial = false) => {
     const sequence = ++sessionCheckSequence.current
     try {
@@ -75,10 +86,7 @@ export default function App() {
 
       const previousUser = currentUserRef.current
       if (previousUser?.id !== user.id) {
-        currentUserRef.current = user
-        setCurrentUser(user)
-        setSessionExpired(false)
-        setAuthState('signed-in')
+        showSignedIn(user)
         return
       }
 
@@ -88,20 +96,31 @@ export default function App() {
         showSignedOut(false)
       }
     }
-  }, [showSignedOut])
+  }, [showSignedIn, showSignedOut])
 
   useEffect(() => {
     if (IS_GITHUB_PAGES_DEMO) return
     void verifyCurrentSession(true)
 
     // 普通接口刷新会话失败时，统一回到登录页并给出明确提示。
-    const handleExpiredSession = () => showSignedOut(true)
+    const handleExpiredSession = (event: Event) => {
+      const { userId } = (event as CustomEvent<AuthExpiredEventDetail>).detail || {}
+      if (userId && currentUserRef.current?.id !== userId) return
+      showSignedOut(true)
+    }
+    const handleChangedSession = (event: Event) => {
+      const detail = (event as CustomEvent<AuthSessionChangedEventDetail>).detail
+      if (!detail?.user || currentUserRef.current?.id !== detail.previousUserId) return
+      showSignedIn(detail.user)
+    }
     window.addEventListener(AUTH_EXPIRED_EVENT, handleExpiredSession)
+    window.addEventListener(AUTH_SESSION_CHANGED_EVENT, handleChangedSession)
     return () => {
       sessionCheckSequence.current += 1
       window.removeEventListener(AUTH_EXPIRED_EVENT, handleExpiredSession)
+      window.removeEventListener(AUTH_SESSION_CHANGED_EVENT, handleChangedSession)
     }
-  }, [showSignedOut, verifyCurrentSession])
+  }, [showSignedIn, showSignedOut, verifyCurrentSession])
 
   useEffect(() => {
     if (IS_GITHUB_PAGES_DEMO || authState !== 'signed-in') return
@@ -129,13 +148,7 @@ export default function App() {
   if (authState === 'signed-out' || !currentUser) {
     return (
       <LoginScreen
-        onSignedIn={(user) => {
-          sessionCheckSequence.current += 1
-          currentUserRef.current = user
-          setCurrentUser(user)
-          setSessionExpired(false)
-          setAuthState('signed-in')
-        }}
+        onSignedIn={showSignedIn}
         sessionExpired={sessionExpired}
       />
     )

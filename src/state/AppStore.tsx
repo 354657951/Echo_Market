@@ -239,7 +239,7 @@ export function AppStoreProvider({
     setSyncStatus('loading')
     setSyncMessage('正在获取组员的最新修改')
     try {
-      const snapshot = await fetchSharedStore()
+      const snapshot = await fetchSharedStore(request.userId)
       if (!applyRequestSnapshot(request, snapshot)) return
       setSyncStatus('ready')
       setSyncMessage('共享数据已同步')
@@ -272,8 +272,8 @@ export function AppStoreProvider({
           && !localStorage.getItem(migrationKey)
           && hasLegacyData(legacy)
         const snapshot = shouldImport
-          ? await importLegacyStore(legacy)
-          : await fetchSharedStore()
+          ? await importLegacyStore(legacy, request.userId)
+          : await fetchSharedStore(request.userId)
         if (shouldImport) {
           const importedProductIds = new Set(snapshot.products.map((product) => product.id))
           const missingProducts = legacy.userProducts.filter(
@@ -317,7 +317,7 @@ export function AppStoreProvider({
       if (document.visibilityState !== 'visible') return
       const request = beginRequest()
       try {
-        const snapshot = await fetchSharedStore()
+        const snapshot = await fetchSharedStore(request.userId)
         if (!applyRequestSnapshot(request, snapshot)) return
         setSyncStatus('ready')
         setSyncMessage('共享数据已同步')
@@ -386,7 +386,9 @@ export function AppStoreProvider({
       return
     }
     await runSharedMutation(
-      async () => ({ store: await setSharedCartQuantity(product.id, quantity) }),
+      async (request) => ({
+        store: await setSharedCartQuantity(product.id, quantity, request.userId),
+      }),
       `已将“${product.title}”加入共享清单。`,
     )
   }
@@ -404,7 +406,9 @@ export function AppStoreProvider({
       return
     }
     await runSharedMutation(
-      async () => ({ store: await setSharedCartQuantity(id, normalized) }),
+      async (request) => ({
+        store: await setSharedCartQuantity(id, normalized, request.userId),
+      }),
       normalized > 0 ? '共享清单数量已更新。' : '商品已从共享清单移除。',
     )
   }
@@ -430,7 +434,9 @@ export function AppStoreProvider({
       return
     }
     await runSharedMutation(
-      async () => ({ store: await setSharedFavorite(id, favorite) }),
+      async (request) => ({
+        store: await setSharedFavorite(id, favorite, request.userId),
+      }),
       favoriteMessage(id, favorite),
       undoAction,
     )
@@ -470,6 +476,7 @@ export function AppStoreProvider({
             latestStore = await setSharedCartQuantity(
               id,
               Math.min((currentCart[id] || 0) + 1, 5),
+              request.userId,
             )
           }
         } catch (error) {
@@ -511,7 +518,7 @@ export function AppStoreProvider({
         let latestStore: SharedStoreSnapshot | undefined
         try {
           for (const id of validIds) {
-            latestStore = await setSharedFavorite(id, favorite)
+            latestStore = await setSharedFavorite(id, favorite, request.userId)
           }
         } catch (error) {
           if (latestStore) applyRequestSnapshot(request, latestStore)
@@ -557,7 +564,7 @@ export function AppStoreProvider({
       return product
     }
     const result = await runSharedMutation(
-      () => createSharedProduct(draft),
+      (request) => createSharedProduct(draft, request.userId),
       '商品已发布，组员刷新后即可看到。',
     )
     return result.product
@@ -581,7 +588,7 @@ export function AppStoreProvider({
       return order
     }
     const result = await runSharedMutation(
-      () => createSharedOrder(pickup, contactTime),
+      (request) => createSharedOrder(pickup, contactTime, request.userId),
       '交易确认单已保存到共享记录。',
     )
     return result.order

@@ -4,7 +4,17 @@ export interface AuthUser {
 }
 
 export const AUTH_EXPIRED_EVENT = 'echo-market-auth-expired'
+export const AUTH_SESSION_CHANGED_EVENT = 'echo-market-auth-session-changed'
 export const AUTH_SESSION_VERIFIED_EVENT = 'echo-market-auth-session-verified'
+
+export interface AuthExpiredEventDetail {
+  userId?: string
+}
+
+export interface AuthSessionChangedEventDetail {
+  previousUserId: string
+  user: AuthUser
+}
 
 interface AuthPayload {
   authenticated: boolean
@@ -61,6 +71,7 @@ export async function resolveInitialSession() {
 export async function authFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
+  expectedUserId?: string,
 ) {
   const response = await fetch(input, init)
   if (response.status !== 401 || String(input).startsWith('/api/auth/')) {
@@ -69,13 +80,30 @@ export async function authFetch(
 
   const refreshed = await refreshAuthSession()
   if (!refreshed) {
-    window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT))
+    window.dispatchEvent(new CustomEvent<AuthExpiredEventDetail>(
+      AUTH_EXPIRED_EVENT,
+      { detail: { userId: expectedUserId } },
+    ))
+    return response
+  }
+
+  // 旧账号的失败请求不能在刷新后借用新账号身份重试写入。
+  if (expectedUserId && refreshed.user?.id !== expectedUserId) {
+    if (refreshed.user) {
+      window.dispatchEvent(new CustomEvent<AuthSessionChangedEventDetail>(
+        AUTH_SESSION_CHANGED_EVENT,
+        { detail: { previousUserId: expectedUserId, user: refreshed.user } },
+      ))
+    }
     return response
   }
 
   const retried = await fetch(input, init)
   if (retried.status === 401) {
-    window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT))
+    window.dispatchEvent(new CustomEvent<AuthExpiredEventDetail>(
+      AUTH_EXPIRED_EVENT,
+      { detail: { userId: expectedUserId } },
+    ))
   }
   return retried
 }

@@ -27,14 +27,18 @@ export function isUnauthorizedStoreError(error: unknown): error is StoreApiError
   return error instanceof StoreApiError && error.status === 401
 }
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+async function requestJson<T>(
+  path: string,
+  expectedUserId: string,
+  init?: RequestInit,
+): Promise<T> {
   const response = await authFetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
       ...init?.headers,
     },
-  })
+  }, expectedUserId)
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) {
     throw new StoreApiError(
@@ -45,8 +49,8 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T
 }
 
-export async function fetchSharedStore() {
-  const payload = await requestJson<StoreResponse>('/api/store')
+export async function fetchSharedStore(expectedUserId: string) {
+  const payload = await requestJson<StoreResponse>('/api/store', expectedUserId)
   return payload.store
 }
 
@@ -55,25 +59,30 @@ export async function importLegacyStore(legacy: {
   favorites: string[]
   cart: Record<string, number>
   orders: Order[]
-}) {
-  const payload = await requestJson<StoreResponse>('/api/store/bootstrap', {
+}, expectedUserId: string) {
+  const payload = await requestJson<StoreResponse>('/api/store/bootstrap', expectedUserId, {
     method: 'POST',
     body: JSON.stringify(legacy),
   })
   return payload.store
 }
 
-export async function createSharedProduct(draft: ListingDraft) {
-  const payload = await requestJson<StoreResponse & { product: Product }>('/api/products', {
+export async function createSharedProduct(draft: ListingDraft, expectedUserId: string) {
+  const payload = await requestJson<StoreResponse & { product: Product }>('/api/products', expectedUserId, {
     method: 'POST',
     body: JSON.stringify(draft),
   })
   return payload
 }
 
-export async function setSharedFavorite(productId: string, favorite: boolean) {
+export async function setSharedFavorite(
+  productId: string,
+  favorite: boolean,
+  expectedUserId: string,
+) {
   const payload = await requestJson<StoreResponse>(
     `/api/favorites/${encodeURIComponent(productId)}`,
+    expectedUserId,
     {
       method: 'PUT',
       body: JSON.stringify({ favorite }),
@@ -82,9 +91,14 @@ export async function setSharedFavorite(productId: string, favorite: boolean) {
   return payload.store
 }
 
-export async function setSharedCartQuantity(productId: string, quantity: number) {
+export async function setSharedCartQuantity(
+  productId: string,
+  quantity: number,
+  expectedUserId: string,
+) {
   const payload = await requestJson<StoreResponse>(
     `/api/cart/${encodeURIComponent(productId)}`,
+    expectedUserId,
     {
       method: 'PUT',
       body: JSON.stringify({ quantity }),
@@ -93,8 +107,12 @@ export async function setSharedCartQuantity(productId: string, quantity: number)
   return payload.store
 }
 
-export async function createSharedOrder(pickup: string, contactTime: string) {
-  const payload = await requestJson<StoreResponse & { order: Order }>('/api/orders', {
+export async function createSharedOrder(
+  pickup: string,
+  contactTime: string,
+  expectedUserId: string,
+) {
+  const payload = await requestJson<StoreResponse & { order: Order }>('/api/orders', expectedUserId, {
     method: 'POST',
     body: JSON.stringify({ pickup, contactTime }),
   })

@@ -373,6 +373,7 @@ a {
 }
 
 .search-field {
+  position: relative;
   width: min(100%, 380px);
 }
 
@@ -400,6 +401,54 @@ a {
 .publish-form textarea:focus {
   border-color: #888;
   background: #151515;
+}
+
+.search-panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  left: 0;
+  overflow: hidden;
+  border: 1px solid #303030;
+  border-radius: 0.5rem;
+  background: #111;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 35%);
+}
+
+.search-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid #282828;
+  color: #777;
+  font-size: 0.68rem;
+}
+
+.search-panel-heading button,
+.search-suggestion {
+  border: 0;
+  background: transparent;
+}
+
+.search-panel-heading button {
+  color: #aaa;
+}
+
+.search-suggestion {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  color: #ddd;
+  text-align: left;
+}
+
+.search-suggestion:hover,
+.search-suggestion:focus-visible {
+  outline: none;
+  background: #202020;
+  color: #fff;
 }
 
 .filter-list {
@@ -484,6 +533,13 @@ a {
   text-align: left;
   font-size: 1rem;
   font-weight: 500;
+}
+
+.search-highlight {
+  border-radius: 0.15rem;
+  background: #d8ff55;
+  color: #111;
+  padding: 0 0.08rem;
 }
 
 .product-price {
@@ -1731,6 +1787,18 @@ footer > p {
   border-bottom: 1px solid #777;
   background: transparent;
   color: #aaa;
+}
+
+.search-fallback {
+  margin-top: 4rem;
+  padding-top: 2rem;
+  border-top: 1px solid #282828;
+}
+
+.search-fallback h2 {
+  margin: 0 0 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
 }
 
 /* 商品详情页：左侧证据图片，右侧信息和交易决策。 */

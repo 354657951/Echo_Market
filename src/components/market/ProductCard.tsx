@@ -3,7 +3,31 @@ import { Link } from '../../router/AppRouter'
 import { useAppStore } from '../../state/AppStore'
 import type { Product } from '../../types/market'
 
-export function ProductCard({ product }: { product: Product }) {
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function HighlightedText({ terms, text }: { terms: string[]; text: string }) {
+  const normalizedTerms = Array.from(new Set(terms.filter(Boolean)))
+    .sort((left, right) => right.length - left.length)
+  if (normalizedTerms.length === 0) return text
+
+  const matcher = new RegExp(`(${normalizedTerms.map(escapeRegExp).join('|')})`, 'gi')
+  const matches = new Set(normalizedTerms.map((term) => term.toLowerCase()))
+  return text.split(matcher).map((part, index) => (
+    matches.has(part.toLowerCase())
+      ? <mark className="search-highlight" key={`${part}-${index}`}>{part}</mark>
+      : part
+  ))
+}
+
+export function ProductCard({
+  highlightTerms = [],
+  product,
+}: {
+  highlightTerms?: string[]
+  product: Product
+}) {
   // 商品卡片只负责展示与轻量操作，详情内容由独立路由承载。
   const { favorites, toggleFavorite, addToCart } = useAppStore()
   const isFavorite = favorites.includes(product.id)
@@ -29,7 +53,9 @@ export function ProductCard({ product }: { product: Product }) {
       <div className="product-meta">
         <div>
           <p className="product-category">{product.category} · {product.condition}</p>
-          <h3 className="product-title">{product.title}</h3>
+          <h3 className="product-title">
+            <HighlightedText terms={highlightTerms} text={product.title} />
+          </h3>
         </div>
         <p className="product-price">¥{product.price}</p>
       </div>
